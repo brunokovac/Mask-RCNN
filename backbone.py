@@ -20,13 +20,13 @@ class ResidualBlock(tf.keras.models.Model):
 
         return
 
-    def call(self, x):
+    def call(self, x, training=None):
         y = self.c1(x)
-        y = self.bn1(y)
+        y = self.bn1(y, training=training)
         y = self.relu1(y)
 
         y = self.c2(y)
-        y = self.bn2(y)
+        y = self.bn2(y, training=training)
         y = self.relu2(y)
 
         y = self.addition([self.shortcut(x), y])
@@ -42,10 +42,10 @@ class ResidualBlock(tf.keras.models.Model):
 
 class Resnet34(tf.keras.models.Model):
 
-    def __init__(self, input_shape):
+    def __init__(self):
         super().__init__()
 
-        self.conv1 = tf.keras.layers.Conv2D(64, (7, 7), strides=(2, 2), padding="same", input_shape=input_shape)
+        self.conv1 = tf.keras.layers.Conv2D(64, (7, 7), strides=(2, 2), padding="same")
         self.bn1 = tf.keras.layers.BatchNormalization()
         self.relu1 = tf.keras.layers.Activation("relu")
 
@@ -97,10 +97,10 @@ class Resnet34(tf.keras.models.Model):
 
 class Resnet34_FPN(tf.keras.models.Model):
 
-    def __init__(self, input_shape):
+    def __init__(self):
         super().__init__()
 
-        self.conv1 = tf.keras.layers.Conv2D(64, (7, 7), strides=(2, 2), padding="same", input_shape=input_shape)
+        self.conv1 = tf.keras.layers.Conv2D(64, (7, 7), strides=(2, 2), padding="same")
         self.bn1 = tf.keras.layers.BatchNormalization()
         self.relu1 = tf.keras.layers.Activation("relu")
 
@@ -121,8 +121,11 @@ class Resnet34_FPN(tf.keras.models.Model):
         self.block5 = [ResidualBlock(512, (3, 3), 256, 512) for _ in range(3)]
         self.conv5 = self.block5[-1].relu3
 
-        self.P5 = tf.keras.layers.Conv2D(256, (1, 1), strides=(1, 1), padding="same", name="P5")
+        self.M5 = tf.keras.layers.Conv2D(256, (1, 1), strides=(1, 1), padding="same", name="M5")
+        self.P5 = tf.keras.layers.Conv2D(256, (3, 3), strides=(1, 1), padding="same", name="P5")
         self.upsampling5 = tf.keras.layers.UpSampling2D((2, 2), interpolation="nearest")
+
+        self.P6 = tf.keras.layers.MaxPool2D((1, 1), (2, 2), padding="same", name="P6")
 
         self.pre_M4_conv = tf.keras.layers.Conv2D(256, (1, 1), strides=(1, 1), padding="same")
         self.M4 = tf.keras.layers.Add()
@@ -140,9 +143,9 @@ class Resnet34_FPN(tf.keras.models.Model):
 
         return
 
-    def call(self, x):
+    def call(self, x, training=None):
         y = self.conv1(x)
-        y = self.bn1(y)
+        y = self.bn1(y, training=training)
         y = self.relu1(y)
         y = self.pool1(y)
 
@@ -165,7 +168,10 @@ class Resnet34_FPN(tf.keras.models.Model):
             y = b(y)
         y5 = y
 
-        p5 = self.P5(y)
+        m5 = self.M5(y)
+        p5 = self.P5(m5)
+
+        p6 = self.P6(p5)
 
         y1 = self.upsampling5(p5)
         m4 = self.M4([y1, self.pre_M4_conv(y4)])
@@ -179,13 +185,15 @@ class Resnet34_FPN(tf.keras.models.Model):
         m2 = self.M2([y1, self.pre_M2_conv(y2)])
         p2 = self.P2(m2)
 
-        return p2, p3, p4, p5
+        return p2, p3, p4, p5, p6
 
     def model(self):
         x = tf.keras.layers.Input(shape=(224, 224, 3))
         return tf.keras.models.Model(inputs=[x], outputs=self.call(x))
 
 if __name__ == "__main__":
-    m = Resnet34_FPN((224, 224, 3))
-    m.build((None, 224, 224, 3))
+    m = Resnet34_FPN()
+    m.build((1, 224, 224, 3))
     print(m.model().summary())
+    #import numpy as np
+    #p2, p3, p4, p5, p6 = m.model().predict(np.random.rand(3, 224, 224, 3))

@@ -1,23 +1,30 @@
 import os
 import numpy as np
 import math
+import image_util
+import xml_util
 
 class Dataset():
 
-    images = "Image"
-    localization = "groundtruth_localization"
-    recognition = "groundtruth_recognition"
+    images = "/JPEGImages/"
+    localization = "/Annotations/"
+    recognition = "/SegmentationObject/"
 
-    def __init__(self, path, batch_size):
+    def __init__(self, path, data_list, batch_size=None):
         self.path = path
         self.batch_size = batch_size
-        self.data_names = np.array(os.listdir(self.path + self.images))
+
+        with open(path + data_list) as f:
+            content = f.readlines()
+        self.data_names = np.array([x.strip() for x in content])
+
         self.new_epoch = True
         self.current_batch = 0
-        self.total_batches = math.ceil(len(self.data_names) // self.batch_size)
+        if batch_size:
+            self.total_batches = math.ceil(len(self.data_names) // self.batch_size)
         return
 
-    def next_batch(self):
+    def next_batch_names(self):
         if self.new_epoch:
             np.random.shuffle(self.data_names)
 
@@ -33,10 +40,49 @@ class Dataset():
 
         return batch
 
-if __name__ ==  "__main__":
-    d = Dataset("dataset/AOLP/AOLP/Subset_LE/Subset_LE/Subset_LE/", 100)
+    def next_batch(self):
+        img_names = self.next_batch_names()
 
-    for i in range(8):
-        b = d.next_batch()
-        print(b, len(b))
+        images = []
+        boxes = []
+        classes = []
+        for i in range(len(img_names)):
+            img_name = img_names[i]
+            print(img_name)
+            img_path = self.path + self.images + img_name
+            xml_path = self.path + self.localization + img_name.replace("jpg", "xml")
+
+            img = image_util.load_image(img_path)
+            bboxes, object_classes = xml_util.get_bboxes(xml_path)
+            images.append(img)
+            boxes.append(bboxes)
+            classes.append(object_classes)
+
+        return np.array(images), np.array(boxes), np.array(classes)
+
+    def load_all(self):
+        np.random.shuffle(self.data_names)
+
+        images = []
+        boxes = []
+        classes = []
+
+        for i in range(len(self.data_names)):
+            img_name = self.data_names[i]
+            img_path = self.path + self.images + img_name
+            xml_path = self.path + self.localization + img_name.replace("jpg", "xml")
+
+            img = image_util.load_image(img_path)
+            bboxes, object_classes = xml_util.get_bboxes(xml_path)
+            images.append(img)
+            boxes.append(bboxes)
+            classes.append(object_classes)
+
+        return np.array(images), np.array(boxes), np.array(classes)
+
+if __name__ ==  "__main__":
+    d = Dataset("dataset/VOC2012", 100)
+
+    data = d.load_all()
+    print(len(data))
 
