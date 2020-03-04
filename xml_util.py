@@ -37,10 +37,10 @@ def get_bboxes(path):
         class_name = boxes.find("name").text
 
         for box in boxes.findall("bndbox"):
-            x1 = int(box.find("xmin").text)
-            y1 = int(box.find("ymin").text)
-            x2 = int(box.find("xmax").text)
-            y2 = int(box.find("ymax").text)
+            x1 = round(float(box.find("xmin").text))
+            y1 = round(float(box.find("ymin").text))
+            x2 = round(float(box.find("xmax").text))
+            y2 = round(float(box.find("ymax").text))
 
             object_classes.append(classes.index(class_name))
             bboxes.append([x1, y1, x2, y2])

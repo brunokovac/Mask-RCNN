@@ -30,11 +30,12 @@ optimizer = tf.keras.optimizers.Adam(0.001)
 ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 2)
 anchors = anchor_utils.get_all_anchors((512, 512), [64, 128, 256, 512, 1024], [(1, 1), (1, 2), (2, 1)])
 
-data1, data2, data3 = ds.next_batch()
+data1, data2, data3, d4 = ds.next_batch()
 data2, data3 = anchor_utils.get_rpn_classes_and_bbox_deltas(len(data1), anchors, data2)
 
 fb, fbs, dlts = model.call([data1, data2, data3])
-print(fb, fbs, dlts)
+#print(fb, fbs, dlts)
 
-v = rpn.get_proposals(fbs, dlts)
+print(d4)
+v = rpn.get_proposals(fbs, dlts, anchors, d4)
 

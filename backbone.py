@@ -194,6 +194,6 @@ class Resnet34_FPN(tf.keras.models.Model):
 if __name__ == "__main__":
     m = Resnet34_FPN()
     m.build((1, 224, 224, 3))
-    print(m.model().summary())
-    #import numpy as np
-    #p2, p3, p4, p5, p6 = m.model().predict(np.random.rand(3, 224, 224, 3))
+    #print(m.model().summary())
+    import numpy as np
+    p2, p3, p4, p5, p6 = m.model().predict(np.random.rand(3, 224, 224, 3))

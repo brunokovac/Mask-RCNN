@@ -26,8 +26,8 @@ weights_path = "weights.ckpt"
 
 optimizer = tf.keras.optimizers.Adam(0.001)
 
-#ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 1)
-ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 1)
+ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 1)
+#ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 1)
 anchors = anchor_utils.get_all_anchors((512, 512), [64, 128, 256, 512, 1024], [(1, 1), (1, 2), (2, 1)])
 
 data1, data2, data3, d4 = ds.next_batch()

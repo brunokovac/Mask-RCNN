@@ -46,19 +46,20 @@ class Dataset():
         images = []
         boxes = []
         classes = []
+        hws = []
         for i in range(len(img_names)):
             img_name = img_names[i]
-            print(img_name)
             img_path = self.path + self.images + img_name
             xml_path = self.path + self.localization + img_name.replace("jpg", "xml")
 
-            img = image_util.load_image(img_path)
+            img, height, width = image_util.load_image(img_path)
             bboxes, object_classes = xml_util.get_bboxes(xml_path)
             images.append(img)
+            hws.append([height, width])
             boxes.append(bboxes)
             classes.append(object_classes)
 
-        return np.array(images), np.array(boxes), np.array(classes)
+        return np.array(images), np.array(boxes), np.array(classes), np.array(hws)
 
     def load_all(self):
         np.random.shuffle(self.data_names)
@@ -66,23 +67,23 @@ class Dataset():
         images = []
         boxes = []
         classes = []
+        hws = []
 
         for i in range(len(self.data_names)):
             img_name = self.data_names[i]
             img_path = self.path + self.images + img_name
             xml_path = self.path + self.localization + img_name.replace("jpg", "xml")
 
-            img = image_util.load_image(img_path)
+            img, height, width = image_util.load_image(img_path)
             bboxes, object_classes = xml_util.get_bboxes(xml_path)
             images.append(img)
+            hws.append([height, width])
             boxes.append(bboxes)
             classes.append(object_classes)
 
-        return np.array(images), np.array(boxes), np.array(classes)
+        return np.array(images), np.array(boxes), np.array(classes), np.array(hws)
 
 if __name__ ==  "__main__":
-    d = Dataset("dataset/VOC2012", 100)
-
-    data = d.load_all()
-    print(len(data))
+    ds = Dataset("dataset/VOC2012", "/train_list.txt", 10)
+    print(ds.total_batches)
 
