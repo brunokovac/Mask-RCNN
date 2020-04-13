@@ -48,14 +48,14 @@ class RPN(tf.keras.models.Model):
 
         return
 
-    def call(self, inputs, training=None):
+    def call(self, inputs, training=False):
         x = inputs[0]
 
         fg_bg_softmaxes = []
         fg_bgs = []
         bbox_deltas = []
 
-        for level in self.backbone.call(x):
+        for level in self.backbone(x, training):
             y = self.conv(level)
             y = self.relu(y)
 
@@ -92,7 +92,7 @@ class RPN(tf.keras.models.Model):
         return model
 
 @tf.function
-def get_proposals(fg_bg_softmaxes, bbox_deltas, anchors, img_sizes, training=None):
+def get_proposals(fg_bg_softmaxes, bbox_deltas, anchors, img_sizes, training=False):
     fg_scores = fg_bg_softmaxes[:, :, 1]
     top_n = config.TEST_PRE_NMS_TOP_N if training else config.TEST_PRE_NMS_TOP_N
     _, indices = tf.math.top_k(fg_scores, top_n)

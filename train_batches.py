@@ -3,13 +3,14 @@ import backbone
 import dataset_util
 import anchor_utils
 import tensorflow as tf
-import numpy as np
+import config
 import os
 
 @tf.function
 def train_step(model, optimizer, data, labels):
     with tf.GradientTape() as gt:
-        fg_bgs, fg_bg_softmaxes, bboxes = model.call(data)
+        model(data)
+        fg_bgs, fg_bg_softmaxes, bboxes = model(data, training=True)
 
         loss1 = rpn.rpn_object_loss(labels[0], fg_bg_softmaxes)
         loss2 = rpn.rpn_bbox_loss(labels[0], labels[1], bboxes)
@@ -20,16 +21,21 @@ def train_step(model, optimizer, data, labels):
 
         return loss1, loss2, loss
 
-model = rpn.RPN(backbone.Resnet34_FPN(), 3)
-weights_path = "weights_all.ckpt"
-#model.load_weights(weights_path)
-
 ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 32)
 #ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 1)
-anchors = anchor_utils.get_all_anchors((512, 512), [64, 128, 256, 512, 1024], [(1, 1), (1, 2), (2, 1)])
+anchors = anchor_utils.get_all_anchors(config.IMAGE_SIZE, config.ANCHOR_SCALES, config.ANCHOR_RATIOS)
 
-lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(0.001, decay_steps=ds.total_batches * 2, decay_rate=0.95, staircase=True)
-optimizer = tf.keras.optimizers.SGD(lr_schedule, nesterov=True)
+lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(0.01, decay_steps=ds.total_batches * 5,
+                                                             decay_rate=0.90, staircase=True)
+#optimizer = tf.keras.optimizers.SGD(lr_schedule, nesterov=True)
+optimizer = tf.keras.optimizers.SGD(lr=0.02, momentum=0.9, decay=1e-4, nesterov=True)
+
+backbone = backbone.Resnet34_FPN()
+backbone.compile(optimizer)
+model = rpn.RPN(backbone, 3)
+model.compile(optimizer)
+weights_path = "weights_all.ckpt"
+model.load_weights(weights_path)
 
 for epoch in range(50):
     print("Epoch", (epoch + 1))
