@@ -1,4 +1,5 @@
 import rpn
+import losses
 import backbone
 import dataset_util
 import anchor_utils
@@ -11,14 +12,14 @@ def train_step(model, optimizer, data, labels):
     with tf.GradientTape() as gt:
         fg_bgs, fg_bg_softmaxes, bboxes, _ = model(data, training=True)
 
-        loss1 = rpn.rpn_object_loss(labels[0], fg_bg_softmaxes)
-        loss2 = rpn.rpn_bbox_loss(labels[0], labels[1], bboxes)
-        loss = loss1 + loss2
+        object_loss = losses.rpn_object_loss(labels[0], fg_bg_softmaxes)
+        bbox_loss = losses.rpn_bbox_loss(labels[0], labels[1], bboxes)
+        loss = object_loss + bbox_loss
 
         grads = gt.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
-        return loss1, loss2, loss
+        return object_loss, bbox_loss
 
 ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 32)
 #ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 1)
@@ -31,17 +32,16 @@ optimizer = tf.keras.optimizers.SGD(lr=0.02, momentum=0.9, decay=1e-4, nesterov=
 
 backbone = backbone.Resnet34_FPN()
 model = rpn.RPN(backbone, 3)
-weights_path = "weights_all.ckpt"
+weights_path = config.WEIGHTS_PATH
 model.load_weights(weights_path)
 
 for epoch in range(50):
     print("Epoch", (epoch + 1))
     for i in range(ds.total_batches):
-        data1, gt_boxes, data3, d4 = ds.next_batch()
-        data2, data3 = anchor_utils.get_rpn_classes_and_bbox_deltas(len(data1), anchors, gt_boxes)
-        l1, l2, l = train_step(model, optimizer, [data1, data2, data3], [data2, data3])
-        print("Iter {}: rpn_cls_loss={}, rpn_bbox_loss={}, rpn_total_loss={}".format(i+1,
-                    tf.keras.backend.eval(l1), tf.keras.backend.eval(l2), tf.keras.backend.eval(l)))
+        images, gt_boxes, gt_classes, img_sizes = ds.next_batch()
+        rpn_classes, rpn_bbox_deltas = anchor_utils.get_rpn_classes_and_bbox_deltas(len(images), anchors, gt_boxes)
+        object_loss, bbox_loss = train_step(model, optimizer, [images], [rpn_classes, rpn_bbox_deltas])
+        print("Iter {}: rpn_cls_loss={}, rpn_bbox_loss={}".format(i+1, tf.keras.backend.eval(object_loss), tf.keras.backend.eval(bbox_loss)))
 
     model.save_weights(weights_path)
 

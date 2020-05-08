@@ -1,22 +1,23 @@
 import tensorflow as tf
+import config
 
 class ResidualBlock(tf.keras.models.Model):
 
-    def __init__(self, filters, kernel_size, channels_in=None, downsize=False):
+    def __init__(self, name, filters, kernel_size, channels_in=None, downsize=False):
         super().__init__()
         if not channels_in:
             channels_in = filters
 
         c1_strides = (2, 2) if downsize else (1, 1)
-        self.c1 = tf.keras.layers.Conv2D(filters, kernel_size, c1_strides, padding="same")
-        self.bn1 = tf.keras.layers.BatchNormalization()
+        self.c1 = tf.keras.layers.Conv2D(filters, kernel_size, c1_strides, padding="same", name=name+"-conv1")
+        self.bn1 = tf.keras.layers.BatchNormalization(name=name+"-bn1")
         self.relu1 = tf.keras.layers.Activation("relu")
 
-        self.c2 = tf.keras.layers.Conv2D(filters, kernel_size, padding="same")
-        self.bn2 = tf.keras.layers.BatchNormalization()
+        self.c2 = tf.keras.layers.Conv2D(filters, kernel_size, padding="same", name=name+"-conv2")
+        self.bn2 = tf.keras.layers.BatchNormalization(name=name+"-bn2")
         self.relu2 = tf.keras.layers.Activation("relu")
 
-        self.shortcut = self.shortcut_method(channels_in, filters)
+        self.shortcut = self.shortcut_method(channels_in, filters, name)
 
         self.addition = tf.keras.layers.Add()
         self.relu3 = tf.keras.layers.Activation("relu")
@@ -37,9 +38,9 @@ class ResidualBlock(tf.keras.models.Model):
 
         return y
 
-    def shortcut_method(self, channels_in, channels_out):
+    def shortcut_method(self, channels_in, channels_out, name):
         if channels_in != channels_out:
-            return tf.keras.layers.Conv2D(channels_out, (1, 1), strides=(2, 2))
+            return tf.keras.layers.Conv2D(channels_out, (1, 1), strides=(2, 2), name=name+"-conv-shortcut")
         else:
             return lambda x : x
 
@@ -100,48 +101,48 @@ class Resnet34_FPN(tf.keras.models.Model):
     def __init__(self):
         super().__init__()
 
-        self.conv1 = tf.keras.layers.Conv2D(64, (7, 7), strides=(2, 2), padding="same")
-        self.bn1 = tf.keras.layers.BatchNormalization()
+        self.conv1 = tf.keras.layers.Conv2D(64, (7, 7), strides=(2, 2), padding="same", name="block1-conv")
+        self.bn1 = tf.keras.layers.BatchNormalization(name="block1-bn")
         self.relu1 = tf.keras.layers.Activation("relu")
 
-        self.pool1 = tf.keras.layers.MaxPool2D((3, 3), (2, 2), padding="same")
+        self.pool1 = tf.keras.layers.MaxPool2D((3, 3), (2, 2), padding="same", name="block1-pool")
 
-        self.block2 = [ResidualBlock(64, (3, 3)) for _ in range(3)]
+        self.block2 = [ResidualBlock("block2-{}".format(i), 64, (3, 3)) for i in range(3)]
         self.conv2 = self.block2[-1].relu3
 
-        self.block3 = [ResidualBlock(128, (3, 3), 64, downsize=True)]
-        self.block3.extend([ResidualBlock(128, (3, 3)) for _ in range(3)])
+        self.block3 = [ResidualBlock("block3", 128, (3, 3), 64, downsize=True)]
+        self.block3.extend([ResidualBlock("block3-{}".format(i), 128, (3, 3)) for i in range(3)])
         self.conv3 = self.block3[-1].relu3
 
-        self.block4 = [ResidualBlock(256, (3, 3), 128, downsize=True)]
-        self.block4.extend([ResidualBlock(256, (3, 3)) for _ in range(5)])
+        self.block4 = [ResidualBlock("block4", 256, (3, 3), 128, downsize=True)]
+        self.block4.extend([ResidualBlock("block4-{}".format(i), 256, (3, 3)) for i in range(5)])
         self.conv4 = self.block4[-1].relu3
 
-        self.block5 = [ResidualBlock(512, (3, 3), 256, downsize=True)]
-        self.block5.extend([ResidualBlock(512, (3, 3)) for _ in range(2)])
+        self.block5 = [ResidualBlock("block5", 512, (3, 3), 256, downsize=True)]
+        self.block5.extend([ResidualBlock("block5-{}".format(i), 512, (3, 3)) for i in range(2)])
         self.conv5 = self.block5[-1].relu3
 
-        self.M5 = tf.keras.layers.Conv2D(256, (1, 1), strides=(1, 1), padding="same", name="M5")
-        self.P5 = tf.keras.layers.Conv2D(256, (3, 3), strides=(1, 1), padding="same", name="P5")
+        self.M5 = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (1, 1), strides=(1, 1), padding="same", name="M5")
+        self.P5 = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (3, 3), strides=(1, 1), padding="same", name="P5")
         self.upsampling5 = tf.keras.layers.UpSampling2D((2, 2), interpolation="nearest")
 
         self.P6 = tf.keras.layers.MaxPool2D((1, 1), (2, 2), padding="same", name="P6")
 
-        self.pre_M4_conv = tf.keras.layers.Conv2D(256, (1, 1), strides=(1, 1), padding="same")
+        self.pre_M4_conv = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (1, 1), strides=(1, 1), padding="same", name="pre_M4_conv")
         self.M4 = tf.keras.layers.Add()
-        self.P4 = tf.keras.layers.Conv2D(256, (3, 3), strides=(1, 1), padding="same", name="P4")
+        self.P4 = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (3, 3), strides=(1, 1), padding="same", name="P4")
         self.upsampling4 = tf.keras.layers.UpSampling2D((2, 2), interpolation="nearest")
 
-        self.pre_M3_conv = tf.keras.layers.Conv2D(256, (1, 1), strides=(1, 1), padding="same")
+        self.pre_M3_conv = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (1, 1), strides=(1, 1), padding="same", name="pre_M3_conv")
         self.M3 = tf.keras.layers.Add()
-        self.P3 = tf.keras.layers.Conv2D(256, (3, 3), strides=(1, 1), padding="same", name="P3")
+        self.P3 = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (3, 3), strides=(1, 1), padding="same", name="P3")
         self.upsampling3 = tf.keras.layers.UpSampling2D((2, 2), interpolation="nearest")
 
-        self.pre_M2_conv = tf.keras.layers.Conv2D(256, (1, 1), strides=(1, 1), padding="same")
+        self.pre_M2_conv = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (1, 1), strides=(1, 1), padding="same", name="pre_M2_conv")
         self.M2 = tf.keras.layers.Add()
-        self.P2 = tf.keras.layers.Conv2D(256, (3, 3), strides=(1, 1), padding="same", name="P2")
+        self.P2 = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (3, 3), strides=(1, 1), padding="same", name="P2")
 
-        return
+        #return self.compile(tf.keras.optimizers.SGD(1))
 
     def call(self, x, training=False):
         y = self.conv1(x)

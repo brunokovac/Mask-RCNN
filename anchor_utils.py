@@ -34,21 +34,6 @@ def get_all_anchors(image_dimensions, scales, ratios):
 
     return np.array(anchors)
 
-def get_overlaps2(bboxes1, bboxes2):
-    result = np.zeros((len(bboxes1), len(bboxes2)))
-
-    for i in range(len(bboxes1)):
-        for j in range(len(bboxes2)):
-            x1_1, y1_1, x2_1, y2_1 = bboxes1[i]
-            x1_2, y1_2, x2_2, y2_2 = bboxes2[j]
-
-            area1 = (x2_1 - x1_1) * (y2_1 - y1_1)
-            area2 = (x2_2 - x1_2) * (y2_2 - y1_2)
-            overlap = max(0, (min(x2_1, x2_2) - max(x1_1, x1_2))) * max(0, (min(y2_1, y2_2) - max(y1_1, y1_2)))
-            result[i][j] = overlap / (area1 + area2 - overlap)
-
-    return result
-
 def get_overlaps(bboxes1, bboxes2):
     boxes1 = np.repeat(bboxes1, len(bboxes2), axis=0)
     boxes2 = np.tile(bboxes2, (len(bboxes1), 1))
@@ -70,53 +55,20 @@ def get_overlaps(bboxes1, bboxes2):
 
     return iou
 
-def get_rpn_classes_and_bbox_deltas_for_single_image2(anchors, gt_bboxes):
-    rpn_classes = np.zeros((len(anchors), 1))
-    rpn_bbox_deltas = np.zeros((len(anchors), 4))
+def get_deltas(anchors, gt_bboxes):
+    anchor_heights = anchors[:, 3] - anchors[:, 1]
+    anchor_widths = anchors[:, 2] - anchors[:, 0]
 
-    overlaps = get_overlaps(anchors, gt_bboxes)
+    gt_heights = gt_bboxes[:, 3] - gt_bboxes[:, 1]
+    gt_widths = gt_bboxes[:, 2] - gt_bboxes[:, 0]
 
-    max_overlaps_by_anchor = np.argmax(overlaps, axis=1)
+    delta_x = ((gt_bboxes[:, 2] + gt_bboxes[:, 0]) / 2 - (anchors[:, 2] + anchors[:, 0]) / 2) / anchor_widths
+    delta_y = ((gt_bboxes[:, 3] + gt_bboxes[:, 1]) / 2 - (anchors[:, 3] + anchors[:, 1]) / 2) / anchor_heights
+    delta_width = np.log(gt_widths / anchor_widths)
+    delta_height = np.log(gt_heights / anchor_heights)
 
-    max_bboxes = overlaps[range(overlaps.shape[0]), max_overlaps_by_anchor]
-    print(np.max(max_bboxes))
-    rpn_classes[max_bboxes < config.NEGATIVE_ANCHOR_THRESHOLD] = -1
-    rpn_classes[max_bboxes > config.POSITIVE_ANCHOR_THRESHOLD] = 1
-
-    max_overlaps_by_bbox = np.argmax(overlaps, axis=0)
-    rpn_classes[max_overlaps_by_bbox] = 1
-
-    '''MAX_ANCHORS = config.MAX_ANCHORS
-
-    indices = np.where(rpn_classes == -1)[0]
-    extras = len(indices) - (MAX_ANCHORS - len(np.where(rpn_classes == 1)[0]))
-    if extras > 0:
-        rpn_classes[np.random.choice(indices, extras)[0]] = 0
-
-    indices = np.where(rpn_classes == 1)[0]
-    extras = len(indices) - MAX_ANCHORS//2
-    if extras > 0:
-        rpn_classes[np.random.choice(indices, extras)[0]] = 0'''
-
-    rows = np.where(rpn_classes == 1)[0]
-    columns = max_overlaps_by_anchor[rows]
-    for i, j in zip(rows, columns):
-        anchor = anchors[i]
-        gt_bbox = gt_bboxes[j]
-
-        anchor_height = anchor[3] - anchor[1]
-        anchor_width = anchor[2] - anchor[0]
-
-        gt_height = gt_bbox[3] - gt_bbox[1]
-        gt_width = gt_bbox[2] - gt_bbox[0]
-
-        delta_x = ((gt_bbox[2] - gt_bbox[0])/2 - (anchor[2] - anchor[0])/2) / anchor_width
-        delta_y = ((gt_bbox[3] - gt_bbox[1])/2 - (anchor[3] - anchor[1])/2) / anchor_height
-        delta_width = np.log(gt_width / anchor_width)
-        delta_height = np.log(gt_height / anchor_height)
-        rpn_bbox_deltas[i] = [delta_x, delta_y, delta_width, delta_height]
-
-    return rpn_classes, rpn_bbox_deltas
+    res = np.stack([delta_x, delta_y, delta_width, delta_height], axis=1)
+    return res
 
 def get_rpn_classes_and_bbox_deltas_for_single_image(anchors, gt_bboxes):
     rpn_classes = np.zeros((len(anchors), 1))
@@ -146,24 +98,12 @@ def get_rpn_classes_and_bbox_deltas_for_single_image(anchors, gt_bboxes):
 
     rows = np.where(rpn_classes == 1)[0]
     columns = max_overlaps_by_anchor[rows]
-    for i, j in zip(rows, columns):
-        anchor = anchors[i]
-        gt_bbox = gt_bboxes[j]
 
-        anchor_height = anchor[3] - anchor[1]
-        anchor_width = anchor[2] - anchor[0]
-
-        gt_height = gt_bbox[3] - gt_bbox[1]
-        gt_width = gt_bbox[2] - gt_bbox[0]
-
-        delta_x = ((gt_bbox[2] + gt_bbox[0])/2 - (anchor[2] + anchor[0])/2) / anchor_width
-        delta_y = ((gt_bbox[3] + gt_bbox[1])/2 - (anchor[3] + anchor[1])/2) / anchor_height
-        delta_width = np.log(gt_width / anchor_width)
-        delta_height = np.log(gt_height / anchor_height)
-        rpn_bbox_deltas[i] = [delta_x, delta_y, delta_width, delta_height]
+    selected_anchors = anchors[rows]
+    selected_gt_bboxes = gt_bboxes[columns]
+    rpn_bbox_deltas[rows] = get_deltas(selected_anchors, selected_gt_bboxes)
 
     return rpn_classes, rpn_bbox_deltas
-
 
 def get_rpn_classes_and_bbox_deltas(batch_size, anchors, gt_bboxes):
     rpn_classes = np.zeros((batch_size, len(anchors), 1))
@@ -187,9 +127,9 @@ if __name__ == "__main__":
     # ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 2)
     ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 1)
     data1, data2_2, data3, d4 = ds.next_batch()
-    data2, data3 = anchor_utils.get_rpn_classes_and_bbox_deltas(len(data1), anchors, data2_2)
+    data2_2, data3_2 = anchor_utils.get_rpn_classes_and_bbox_deltas(len(data1), anchors, data2_2)
 
-    ind = np.where(data2[0] == 1)[0]
+    ind = np.where(data2_2[0] == 1)[0]
     boxes = anchors[ind]
     print(len(ind))
 

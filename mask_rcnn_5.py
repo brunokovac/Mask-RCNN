@@ -6,6 +6,7 @@ import anchor_utils
 import xml_util
 import dataset_util
 import config
+import keras
 
 def pad_softmaxes_with_zero_class(tensor, num_to_pad):
     ones_padding = tf.ones([num_to_pad, 1])
@@ -123,18 +124,20 @@ class Mask_RCNN(tf.keras.models.Model):
         self.anchors = anchors
         self.num_classes = num_classes
 
-        self.fc1 = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(1024, name="mask-fc1"), name="mask-td1")
-        self.bn1 = tf.keras.layers.TimeDistributed(tf.keras.layers.BatchNormalization(name="mask-bn1"), name="mask-td2")
+        self.flatten = tf.keras.layers.Flatten()
+
+        self.fc1 = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(1024))
+        self.bn1 = tf.keras.layers.TimeDistributed(tf.keras.layers.BatchNormalization())
         self.relu1 = tf.keras.layers.TimeDistributed(tf.keras.layers.Activation("relu"))
 
-        self.fc2 = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(1024, name="mask-fc2"), name="mask-td3")
-        self.bn2 = tf.keras.layers.TimeDistributed(tf.keras.layers.BatchNormalization(name="mask-bn2"), name="mask-td4")
+        self.fc2 = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(1024))
+        self.bn2 = tf.keras.layers.TimeDistributed(tf.keras.layers.BatchNormalization())
         self.relu2 = tf.keras.layers.TimeDistributed(tf.keras.layers.Activation("relu"))
 
-        self.classes_logits = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(num_classes, name="mask-classes-logits"), name="mask-td5")
+        self.classes_logits = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(num_classes))
         self.classes_softmax = tf.keras.layers.TimeDistributed(tf.keras.layers.Activation("softmax"))
 
-        self.bbox_deltas = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(num_classes * 4, name="mask-bbox-deltas"), name="mask-td6")
+        self.bbox_deltas = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(num_classes * 4))
 
         #return self.compile(tf.keras.optimizers.SGD(1))
 
@@ -247,11 +250,6 @@ class Mask_RCNN(tf.keras.models.Model):
 
             boxes_i = tf.stack([x1, y1, x2, y2], axis=1)
 
-            correct_boxes_indices = tf.where((boxes_i[:, 2] - boxes_i[:, 0]) > 0)
-            boxes_i = tf.gather_nd(boxes_i, correct_boxes_indices)
-            correct_boxes_indices = tf.where((boxes_i[:, 3] - boxes_i[:, 1]) > 0)
-            boxes_i = tf.gather_nd(boxes_i, correct_boxes_indices)
-
             '''height = tf.cast(img_sizes[i, 0], "float32")
             width = tf.cast(img_sizes[i, 1], "float32")
             correct_boxes_indices = tf.where(tf.greater(boxes_i[:, 0], 0))
@@ -265,14 +263,13 @@ class Mask_RCNN(tf.keras.models.Model):
             correct_boxes_indices = tf.where(tf.greater((boxes_i[:, 2] - boxes_i[:, 0]) * (boxes_i[:, 3] - boxes_i[:, 1]), 0))
             boxes_i = tf.gather_nd(boxes_i, correct_boxes_indices)'''
 
-            nms_scores = tf.gather_nd(fg_scores_i, correct_boxes_indices)
+            nms_scores = tf.gather(fg_scores_i, indices_i)
 
             num_rois = config.TRAIN_POST_NMS_TOP_N_PER_IMAGE if training else config.TEST_POST_NMS_TOP_N_PER_IMAGE
             nms_indices = tf.image.non_max_suppression(boxes_i, nms_scores, num_rois, iou_threshold=0.7)
 
             boxes_i = tf.gather(boxes_i, nms_indices)
-            boxes_i = pad_boxes_with_zeros(boxes_i / 512, tf.math.maximum(num_rois - len(boxes_i), 0))
-            #print(boxes_i)
+            boxes_i = pad_boxes_with_zeros(boxes_i, tf.math.maximum(num_rois - len(boxes_i), 0))
             boxes.append(boxes_i)
 
         return tf.convert_to_tensor(boxes)
@@ -285,9 +282,9 @@ class Mask_RCNN(tf.keras.models.Model):
         # feature pyramid. Each is [batch, height, width, channels]
         feature_maps = levels
 
-        logs = tf.math.log(tf.math.sqrt((proposals[:, :, 2] - proposals[:, :, 0])
-                           * (proposals[:, :, 3] - proposals[:, :, 1])) / 224) / tf.math.log(2.0)
-        mappings = tf.cast(tf.math.minimum(tf.math.round(tf.math.maximum(4 + logs, 2)), 5), "int32")
+        logs = tf.math.log((proposals[:, :, 2] - proposals[:, :, 0])
+                           * (proposals[:, :, 3] - proposals[:, :, 1]) / 224) / tf.math.log(2.0)
+        mappings = tf.cast(tf.math.minimum(tf.math.floor(tf.math.maximum(logs, 2)), 5), "int32")
         roi_level = mappings
 
         # Loop through levels and apply ROI pooling to each. P2 to P5.
@@ -296,8 +293,6 @@ class Mask_RCNN(tf.keras.models.Model):
         for i, level in enumerate(range(2, 6)):
             ix = tf.where(tf.equal(roi_level, level))
             level_boxes = tf.gather_nd(boxes, ix) / config.IMAGE_SIZE[0]
-
-            #print(level_boxes.shape)
 
             # Box indices for crop_and_resize.
             box_indices = tf.cast(ix[:, 0], tf.int32)
@@ -384,6 +379,8 @@ if __name__ == "__main__":
     #ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 2)
     ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 2)
     data1, data2, data3, d4 = ds.next_batch()
+    print(data2.dtype, data2.shape)
+    print(data2)
     data2, data3 = anchor_utils.get_rpn_classes_and_bbox_deltas(len(data1), anchors, data2)
 
-    a, b, c, d, e = model([data1, d4], training=True)
+    classes, bboxes = model([data1, d4], training=True)

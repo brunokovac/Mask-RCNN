@@ -21,7 +21,7 @@ class Dataset():
         self.new_epoch = True
         self.current_batch = 0
         if batch_size:
-            self.total_batches = math.ceil(len(self.data_names) // self.batch_size)
+            self.total_batches = math.ceil(len(self.data_names) / self.batch_size)
         return
 
     def next_batch_names(self):
@@ -49,8 +49,8 @@ class Dataset():
         hws = []
         for i in range(len(img_names)):
             img_name = img_names[i]
-            img_path = self.path + self.images + img_name
-            xml_path = self.path + self.localization + img_name.replace("jpg", "xml")
+            img_path = self.path + self.images + img_name + ".jpg"
+            xml_path = self.path + self.localization + img_name + ".xml"
 
             img, height, width = image_util.load_image(img_path)
             bboxes, object_classes = xml_util.get_bboxes(xml_path)
@@ -71,8 +71,8 @@ class Dataset():
 
         for i in range(len(self.data_names)):
             img_name = self.data_names[i]
-            img_path = self.path + self.images + img_name
-            xml_path = self.path + self.localization + img_name.replace("jpg", "xml")
+            img_path = self.path + self.images + img_name + ".jpg"
+            xml_path = self.path + self.localization + img_name + ".xml"
 
             img, height, width = image_util.load_image(img_path)
             bboxes, object_classes = xml_util.get_bboxes(xml_path)

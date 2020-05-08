@@ -1,38 +1,15 @@
 import xml.etree.ElementTree as ET
 import numpy as np
-
-classes = [
-    "background",
-    "aeroplane",
-    "bicycle",
-    "bird",
-    "boat",
-    "bottle",
-    "bus",
-    "car",
-    "cat",
-    "chair",
-    "cow",
-    "diningtable",
-    "dog",
-    "horse",
-    "motorbike",
-    "person",
-    "pottedplant",
-    "sheep",
-    "sofa",
-    "train",
-    "tvmonitor"
-]
+import config
 
 def get_bboxes(path):
     tree = ET.parse(path)
     root = tree.getroot()
 
-    bboxes = []
-    object_classes = []
+    bboxes = np.zeros([config.MAX_OBJECTS_PER_IMAGE, 4], dtype="int32")
+    object_classes = np.zeros([config.MAX_OBJECTS_PER_IMAGE], dtype="int32")
 
-    for boxes in root.iter('object'):
+    for i, boxes in enumerate(root.iter('object')):
 
         class_name = boxes.find("name").text
 
@@ -42,10 +19,10 @@ def get_bboxes(path):
             x2 = round(float(box.find("xmax").text))
             y2 = round(float(box.find("ymax").text))
 
-            object_classes.append(classes.index(class_name))
-            bboxes.append([x1, y1, x2, y2])
+            object_classes[i] = config.CLASSES.index(class_name)
+            bboxes[i] = [x1, y1, x2, y2]
 
-    return np.array(bboxes), np.array(object_classes)
+    return bboxes, object_classes
 
 if __name__ == "__main__":
     img1, img2 = get_bboxes("dataset/VOC2012/Annotations/2007_000032.xml")

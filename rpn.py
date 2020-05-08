@@ -2,30 +2,7 @@ import tensorflow as tf
 import numpy as np
 from backbone import *
 import config
-
-def rpn_object_loss(object_gt, object_predicted):
-    object_gt = tf.squeeze(object_gt, axis=-1)
-    indices = tf.where(tf.not_equal(object_gt, 0))
-
-    gt_selected = tf.gather_nd(object_gt, indices)
-    gt_selected = tf.cast(tf.equal(gt_selected, 1), tf.int32)
-    pred_selected = tf.gather_nd(object_predicted, indices)
-
-    loss = tf.keras.losses.SparseCategoricalCrossentropy()(gt_selected, pred_selected)
-    return loss
-
-def rpn_bbox_loss(object_gt, bbox_gt, bbox_predicted):
-    object_gt = tf.squeeze(object_gt, axis=-1)
-    indices = tf.where(tf.equal(object_gt, 1))
-
-    gt_bbox_selected = tf.gather_nd(bbox_gt, indices)
-    pred_bbox_selected = tf.gather_nd(bbox_predicted, indices)
-
-    diff = tf.abs(tf.cast(gt_bbox_selected, "float32") - pred_bbox_selected)
-    less_than_one = tf.cast(tf.less(diff, 1.0), "float32")
-    loss = (less_than_one * 0.5 * diff ** 2) + (1 - less_than_one) * (diff - 0.5)
-    loss = tf.reduce_mean(loss)
-    return loss
+import losses
 
 class RPN(tf.keras.models.Model):
 
@@ -35,18 +12,18 @@ class RPN(tf.keras.models.Model):
         self.backbone = backbone
         self.num_anchors = num_anchors
 
-        self.conv = tf.keras.layers.Conv2D(256, (3, 3), padding="same")
+        self.conv = tf.keras.layers.Conv2D(256, (3, 3), padding="same", name="rpn-conv1")
         self.relu = tf.keras.layers.Activation("relu")
 
-        self.fg_bg_conv = tf.keras.layers.Conv2D(self.num_anchors * 2, (1, 1))
-        self.fg_bg_reshape = tf.keras.layers.Lambda(lambda x : tf.reshape(x, [tf.shape(x)[0], -1, 2]), name="rpn_fg_bg")
+        self.fg_bg_conv = tf.keras.layers.Conv2D(self.num_anchors * 2, (1, 1), name="rpn-fg_bg_conv")
+        #self.fg_bg_reshape = tf.keras.layers.Lambda(lambda x : tf.reshape(x, [tf.shape(x)[0], -1, 2]))
 
         self.fg_bg_softmax = tf.keras.layers.Activation("softmax", name="rpn_fg_bg_softmax")
 
-        self.bbox_conv = tf.keras.layers.Conv2D(self.num_anchors * 4, (1, 1))
-        self.bbox_reshape = tf.keras.layers.Lambda(lambda x: tf.reshape(x, [tf.shape(x)[0], -1, 4]), name="rpn_bbox")
+        self.bbox_conv = tf.keras.layers.Conv2D(self.num_anchors * 4, (1, 1), name="rpn-bbox_conv")
+        #self.bbox_reshape = tf.keras.layers.Lambda(lambda x: tf.reshape(x, [tf.shape(x)[0], -1, 4]))
 
-        return
+        #return self.compile(tf.keras.optimizers.SGD(1))
 
     def call(self, inputs, training=False):
         x = inputs[0]
@@ -55,13 +32,15 @@ class RPN(tf.keras.models.Model):
         fg_bgs = []
         bbox_deltas = []
 
-        for level in self.backbone(x, training):
+        levels = self.backbone(x, training)
+        for level in levels:
             y = self.conv(level)
             y = self.relu(y)
 
             fg_bg_conv = self.fg_bg_conv(y)
             #fg_bg_conv = tf.transpose(fg_bg_conv, [0, 3, 1, 2])
-            fg_bg = self.fg_bg_reshape(fg_bg_conv)
+            #fg_bg = self.fg_bg_reshape(fg_bg_conv)
+            fg_bg = tf.reshape(fg_bg_conv, [len(x), -1, 2])
             fg_bgs.append(fg_bg)
 
             fg_bg_softmax = self.fg_bg_softmax(fg_bg)
@@ -69,14 +48,15 @@ class RPN(tf.keras.models.Model):
 
             bbox_conv = self.bbox_conv(y)
             #bbox_conv = tf.transpose(bbox_conv, [0, 3, 1, 2])
-            bbox = self.bbox_reshape(bbox_conv)
+            #bbox = self.bbox_reshape(bbox_conv)
+            bbox = tf.reshape(bbox_conv, [len(x), -1, 4])
             bbox_deltas.append(bbox)
 
         fg_bgs = tf.concat(fg_bgs, axis=1)
         fg_bg_softmaxes = tf.concat(fg_bg_softmaxes, axis=1)
         bbox_deltas = tf.concat(bbox_deltas, axis=1)
 
-        return fg_bgs, fg_bg_softmaxes, bbox_deltas
+        return fg_bgs, fg_bg_softmaxes, bbox_deltas, levels
 
     def model(self):
         inputs = [tf.keras.layers.Input(shape=(512, 512, 3)),
@@ -86,8 +66,8 @@ class RPN(tf.keras.models.Model):
 
         model = tf.keras.models.Model(inputs=inputs, outputs=outputs)
 
-        model.add_loss(rpn_object_loss(inputs[1], outputs[0]))
-        model.add_loss(rpn_bbox_loss(inputs[1], inputs[2], outputs[2]))
+        model.add_loss(losses.rpn_object_loss(inputs[1], outputs[0]))
+        model.add_loss(losses.rpn_bbox_loss(inputs[1], inputs[2], outputs[2]))
 
         return model
 
