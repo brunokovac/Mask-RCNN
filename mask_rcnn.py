@@ -1,9 +1,6 @@
-import tensorflow as tf
-import numpy as np
 from backbone import *
 import rpn
 import anchor_utils
-import xml_util
 import dataset_util
 import config
 
@@ -23,8 +20,8 @@ def pad_classes_with_zeros(tensor, num_to_pad):
     return tf.pad(tensor, [[0, num_to_pad]], constant_values=0)
 
 def get_overlaps(bboxes1, bboxes2):
-    boxes1 = tf.keras.backend.repeat_elements(bboxes1, len(bboxes2), axis=0)
-    boxes2 = tf.cast(tf.tile(bboxes2, (len(bboxes1), 1)), "float32")
+    boxes1 = tf.reshape(tf.cast(tf.tile(bboxes1, (1, tf.shape(bboxes2)[0])), "float32"), [-1, 4])
+    boxes2 = tf.cast(tf.tile(bboxes2, (tf.shape(bboxes1)[0], 1)), "float32")
 
     x1_1, x2_1 = boxes1[:, 0], boxes2[:, 0]
     x1_2, x2_2 = boxes1[:, 2], boxes2[:, 2]
@@ -39,7 +36,7 @@ def get_overlaps(bboxes1, bboxes2):
     area2 = (x2_2 - x2_1) * (y2_2 - y2_1)
 
     iou = intersection / (area1 + area2 - intersection)
-    iou = tf.reshape(iou, [len(bboxes1), len(bboxes2)])
+    iou = tf.reshape(iou, [tf.shape(bboxes1)[0], tf.shape(bboxes2)[0]])
 
     return iou
 
@@ -67,14 +64,16 @@ def generate_mask_rcnn_labels(proposals, predicted_classes, predicted_bbox_delta
     mask_rcnn_deltas = []
     mask_rcnn_masks = []
 
-    for i in range(len(proposals)):
+    for i in range(proposals.shape[0]):
         non_padded_indices = tf.where(tf.reduce_sum(tf.abs(proposals[i]), axis=1) > 0)
         proposals_i = tf.gather_nd(proposals[i], non_padded_indices)
 
         predicted_classes_i = predicted_classes[i]
         predicted_bbox_deltas_i = predicted_bbox_deltas[i]
-        gt_classes_i = gt_classes[i]
-        gt_bboxes_i = gt_bboxes[i]
+
+        non_padded_indices = tf.where(tf.reduce_sum(tf.abs(gt_bboxes[i]), axis=1) > 0)
+        gt_classes_i = tf.gather_nd(gt_classes[i], non_padded_indices)
+        gt_bboxes_i = tf.gather_nd(gt_bboxes[i], non_padded_indices)
 
         overlaps = get_overlaps(proposals_i, gt_bboxes_i)
 
@@ -86,29 +85,27 @@ def generate_mask_rcnn_labels(proposals, predicted_classes, predicted_bbox_delta
         positive_roi_indices = tf.random.shuffle(positive_roi_indices)[:num_positives]
 
         negative_roi_indices = tf.where(max_overlap_by_proposal < config.POSITIVE_ROI_THRESHOLD)
-        num_negatives = int((int(1 / config.POSITIVE_ROIS_RATIO) - 1) * len(positive_roi_indices))
+        num_negatives = tf.cast((int(1 / config.POSITIVE_ROIS_RATIO) - 1) * tf.shape(positive_roi_indices)[0], "int32")
         negative_roi_indices = tf.random.shuffle(negative_roi_indices)[:num_negatives]
 
         all_indices = tf.concat([positive_roi_indices, negative_roi_indices], axis=0)
-        selected_proposals_i =tf.gather_nd(proposals_i, all_indices)
-        mask_rcnn_proposals.append(pad_boxes_with_zeros(selected_proposals_i, config.MAX_ROIS - len(all_indices)))
+        selected_proposals_i = tf.gather_nd(proposals_i, all_indices)
+        mask_rcnn_proposals.append(pad_boxes_with_zeros(selected_proposals_i, config.MAX_ROIS - tf.shape(all_indices)[0]))
 
-        positive_max_overlap_by_proposal_indices = tf.gather_nd(max_overlap_by_proposal_indices, positive_roi_indices)
-        all_max_overlap_by_proposal_indices = tf.gather_nd(max_overlap_by_proposal_indices, all_indices)
+        gt_classes_indices = tf.gather_nd(max_overlap_by_proposal_indices, positive_roi_indices)
+        proposal_i_classes = tf.gather(gt_classes_i, gt_classes_indices)
+        mask_rcnn_classes.append(pad_classes_with_zeros(proposal_i_classes, config.MAX_ROIS - tf.shape(positive_roi_indices)[0]))
 
-        proposal_i_classes = tf.gather(gt_classes_i, all_max_overlap_by_proposal_indices)
-        mask_rcnn_classes.append(pad_classes_with_zeros(proposal_i_classes, config.MAX_ROIS - len(all_indices)))
+        proposal_i_predicted_classes = tf.gather_nd(predicted_classes_i, positive_roi_indices)
+        mask_rcnn_predicted_classes.append(pad_softmaxes_with_zero_class(proposal_i_predicted_classes, config.MAX_ROIS - tf.shape(all_indices)[0]))
 
-        proposal_i_predicted_classes = tf.gather(predicted_classes_i, all_max_overlap_by_proposal_indices)
-        mask_rcnn_predicted_classes.append(pad_softmaxes_with_zero_class(proposal_i_predicted_classes, config.MAX_ROIS - len(all_indices)))
-
-        matched_gt_boxes = tf.gather(gt_bboxes_i, positive_max_overlap_by_proposal_indices)
+        matched_gt_boxes = tf.gather(gt_bboxes_i, gt_classes_indices)
         positive_proposals_i = tf.gather_nd(proposals_i, positive_roi_indices)
         gt_bbox_deltas = get_deltas(positive_proposals_i, matched_gt_boxes)
-        mask_rcnn_deltas.append(pad_boxes_with_zeros(gt_bbox_deltas, config.MAX_ROIS - len(positive_roi_indices)))
+        mask_rcnn_deltas.append(pad_boxes_with_zeros(gt_bbox_deltas, config.MAX_ROIS - tf.shape(positive_roi_indices)[0]))
 
-        selected_predicted_bbox_deltas = tf.gather(predicted_bbox_deltas_i, positive_max_overlap_by_proposal_indices)
-        mask_rcnn_predicted_bbox_deltas.append(pad_boxes_per_class_with_zeros(selected_predicted_bbox_deltas, config.MAX_ROIS - len(positive_roi_indices)))
+        selected_predicted_bbox_deltas = tf.gather_nd(predicted_bbox_deltas_i, positive_roi_indices)
+        mask_rcnn_predicted_bbox_deltas.append(pad_boxes_per_class_with_zeros(selected_predicted_bbox_deltas, config.MAX_ROIS - tf.shape(positive_roi_indices)[0]))
 
     return tf.convert_to_tensor(mask_rcnn_proposals), tf.convert_to_tensor(mask_rcnn_predicted_classes), \
            tf.convert_to_tensor(mask_rcnn_predicted_bbox_deltas), \
@@ -138,63 +135,98 @@ class Mask_RCNN(tf.keras.models.Model):
 
         #return self.compile(tf.keras.optimizers.SGD(1))
 
-    def call(self, inputs, training=False):
+    def call(self, inputs, training):
         return self.train(inputs) if training else self.eval(inputs)
 
-    def train(self, inputs):
+    def forward_pass(self, inputs, training):
         x = inputs[0]
         img_sizes = inputs[1]
 
-        fg_bgs, fg_bg_softmaxes, rpn_bbox_deltas, levels = self.rpn(inputs, True)
+        fg_bgs, fg_bg_softmaxes, rpn_bbox_deltas, levels = self.rpn(inputs, training)
 
-        num_rois = config.TRAIN_POST_NMS_TOP_N_PER_IMAGE
-        proposals = self.get_proposals_for_batch(fg_bg_softmaxes, rpn_bbox_deltas, img_sizes, True)
-        proposals = tf.reshape(proposals, [len(x), num_rois, 4])
+        num_rois = config.TRAIN_POST_NMS_TOP_N_PER_IMAGE if training else config.TEST_POST_NMS_TOP_N_PER_IMAGE
+        proposals = self.get_proposals_for_batch(fg_bg_softmaxes, rpn_bbox_deltas, img_sizes, training)
+        proposals = tf.reshape(proposals, [tf.shape(x)[0], num_rois, 4])
         rois = self.map_proposals_to_fpn_levels(proposals, levels)
         rois_shape = config.ROIS_SHAPE
 
-        y = tf.reshape(rois, [len(x), num_rois, config.FPN_NUM_CHANNELS * rois_shape[0] * rois_shape[1]])
+        y = tf.reshape(rois, [tf.shape(x)[0], num_rois, config.FPN_NUM_CHANNELS * rois_shape[0] * rois_shape[1]])
         y = self.fc1(y)
-        y = self.bn1(y, training=True)
+        y = self.bn1(y, training=training)
         y = self.relu1(y)
         y = self.fc2(y)
-        y = self.bn2(y, training=True)
+        y = self.bn2(y, training=training)
         y = self.relu2(y)
 
         classes_logits = self.classes_logits(y)
         classes_softmax = self.classes_softmax(classes_logits)
 
         bbox_deltas = self.bbox_deltas(y)
-        bbox_deltas = tf.reshape(bbox_deltas, [len(x), num_rois, self.num_classes, 4])
+        bbox_deltas = tf.reshape(bbox_deltas, [tf.shape(x)[0], num_rois, self.num_classes, 4])
 
         return fg_bg_softmaxes, rpn_bbox_deltas, classes_softmax, bbox_deltas, proposals
 
+    def train(self, inputs):
+        return self.forward_pass(inputs, True)
+
     def eval(self, inputs):
-        x = inputs[0]
+        images = inputs[0]
         img_sizes = inputs[1]
+        fg_bg_softmaxes, rpn_bbox_deltas, classes_softmax, bbox_deltas, proposals = self.forward_pass(inputs, False)
 
-        fg_bgs, fg_bg_softmaxes, rpn_bbox_deltas, levels = self.rpn(inputs, False)
+        bboxes = []
+        classes_scores = []
+        for i in range(tf.shape(images)[0]):
+            boxes_i = []
+            classes_scores_i = []
+            for j in range(1, len(config.CLASSES)):
+                indices = tf.where(classes_softmax[i, :, j] > config.TEST_CLASSIFICATION_SCORE_THRESHOLD)
+                classes_softmax_j = tf.gather_nd(classes_softmax[i, :, j], indices)
 
-        num_rois = config.TEST_POST_NMS_TOP_N_PER_IMAGE
-        proposals = self.get_proposals_for_batch(fg_bg_softmaxes, rpn_bbox_deltas, img_sizes, False)
-        rois = self.map_proposals_to_fpn_levels(proposals, levels)
+                proposals_j = tf.gather_nd(proposals[i], indices)
+                bbox_deltas_j = tf.gather_nd(bbox_deltas[i, :, j], indices)
 
-        rois_shape = config.ROIS_SHAPE
-        y = tf.reshape(rois, [len(x), num_rois, config.FPN_NUM_CHANNELS * rois_shape[0] * rois_shape[1]])
-        y = self.fc1(y)
-        y = self.bn1(y, training=False)
-        y = self.relu1(y)
-        y = self.fc2(y)
-        y = self.bn2(y, training=False)
-        y = self.relu2(y)
+                classes_scores_i.append(classes_softmax_j)
+                boxes_i.append(
+                    self.get_bboxes_for_class(proposals_j, bbox_deltas_j, classes_softmax_j, img_sizes[i])
+                )
 
-        classes_logits = self.classes_logits(y)
-        classes_softmax = self.classes_softmax(classes_logits)
+            bboxes.append(boxes_i)
+            classes_scores.append(classes_scores_i)
 
-        bbox_deltas = self.bbox_deltas(y)
-        bbox_deltas = tf.reshape(bbox_deltas, [len(x), num_rois, self.num_classes, 4])
+        return bboxes, classes_scores, fg_bg_softmaxes, rpn_bbox_deltas, classes_softmax, bbox_deltas, proposals
 
-        return proposals, classes_softmax, bbox_deltas
+    def get_bboxes_for_class(self, proposals, bbox_deltas, class_softmax, img_sizes):
+        img_sizes = tf.cast(img_sizes, "float32")
+
+        height = proposals[:, 3] - proposals[:, 1]
+        width = proposals[:, 2] - proposals[:, 0]
+        center_y = proposals[:, 1] + 0.5 * height
+        center_x = proposals[:, 0] + 0.5 * width
+
+        center_y += bbox_deltas[:, 1] * height
+        center_x += bbox_deltas[:, 0] * width
+        height *= tf.exp(bbox_deltas[:, 3])
+        width *= tf.exp(bbox_deltas[:, 2])
+
+        y1 = tf.math.minimum(tf.math.maximum(center_y - 0.5 * height, 0), img_sizes[0])
+        x1 = tf.math.minimum(tf.math.maximum(center_x - 0.5 * width, 0), img_sizes[1])
+        y2 = tf.math.minimum(tf.math.maximum(y1 + height, 0), img_sizes[0])
+        x2 = tf.math.minimum(tf.math.maximum(x1 + width, 0), img_sizes[1])
+
+        bboxes = tf.stack([x1, y1, x2, y2], axis=1)
+
+        correct_boxes_indices = tf.where((bboxes[:, 2] - bboxes[:, 0]) > 0)
+        bboxes = tf.gather_nd(bboxes, correct_boxes_indices)
+        correct_boxes_indices = tf.where((bboxes[:, 3] - bboxes[:, 1]) > 0)
+        bboxes = tf.gather_nd(bboxes, correct_boxes_indices)
+
+        nms_scores = tf.gather_nd(class_softmax, correct_boxes_indices)
+        nms_indices = tf.image.non_max_suppression(bboxes, nms_scores, config.TEST_MAX_BOXES_PER_IMAGE,
+                                                   iou_threshold=config.TEST_NMS_IOU_THRESHOLD)
+
+        bboxes = tf.gather(bboxes, nms_indices)
+        return bboxes
 
     def get_proposals(self, inputs, training):
         if training:
@@ -202,7 +234,7 @@ class Mask_RCNN(tf.keras.models.Model):
 
         proposals = []
         x = inputs[0]
-        for i in range(x.shape[0]):
+        for i in range(tf.shape(x)[0]):
             x_i = x[i]
             proposals_i = self.get_proposals_for_batch([x_i, inputs[1][i]], training)
             proposals.append(proposals_i[0])
@@ -210,10 +242,9 @@ class Mask_RCNN(tf.keras.models.Model):
         return proposals
 
     def get_proposals_for_batch(self, fg_bg_softmaxes, bbox_deltas, img_sizes, training):
-        bbox_deltas = tf.zeros_like(bbox_deltas)
         fg_scores = fg_bg_softmaxes[:, :, 1]
         top_n = config.TRAIN_PRE_NMS_TOP_N_PER_IMAGE if training else config.TEST_PRE_NMS_TOP_N_PER_IMAGE
-        _, indices = tf.math.top_k(fg_scores, top_n)
+        _, indices = tf.math.top_k(fg_scores, top_n, sorted=True)
 
         boxes = []
 
@@ -235,10 +266,10 @@ class Mask_RCNN(tf.keras.models.Model):
             height *= tf.exp(bbox_deltas_i[:, 3])
             width *= tf.exp(bbox_deltas_i[:, 2])
 
-            y1 = tf.math.maximum(center_y - 0.5 * height, 0)
-            x1 = tf.math.maximum(center_x - 0.5 * width, 0)
-            y2 = tf.math.minimum(y1 + height, img_size_i[0])
-            x2 = tf.math.minimum(x1 + width, img_size_i[1])
+            y1 = tf.math.minimum(tf.math.maximum(center_y - 0.5 * height, 0), img_size_i[0])
+            x1 = tf.math.minimum(tf.math.maximum(center_x - 0.5 * width, 0), img_size_i[1])
+            y2 = tf.math.minimum(tf.math.maximum(y1 + height, 0), img_size_i[0])
+            x2 = tf.math.minimum(tf.math.maximum(x1 + width, 0),  img_size_i[1])
 
             '''y1 = center_y - 0.5 * height
             x1 = center_x - 0.5 * width
@@ -271,7 +302,7 @@ class Mask_RCNN(tf.keras.models.Model):
             nms_indices = tf.image.non_max_suppression(boxes_i, nms_scores, num_rois, iou_threshold=0.7)
 
             boxes_i = tf.gather(boxes_i, nms_indices)
-            boxes_i = pad_boxes_with_zeros(boxes_i / 512, tf.math.maximum(num_rois - len(boxes_i), 0))
+            boxes_i = pad_boxes_with_zeros(boxes_i, tf.math.maximum(num_rois - tf.shape(boxes_i)[0], 0))
             #print(boxes_i)
             boxes.append(boxes_i)
 
@@ -297,16 +328,14 @@ class Mask_RCNN(tf.keras.models.Model):
             ix = tf.where(tf.equal(roi_level, level))
             level_boxes = tf.gather_nd(boxes, ix) / config.IMAGE_SIZE[0]
 
-            #print(level_boxes.shape)
-
             # Box indices for crop_and_resize.
             box_indices = tf.cast(ix[:, 0], tf.int32)
 
             # Keep track of which box is mapped to which level
             box_to_level.append(ix)
 
-            #level_boxes = tf.stop_gradient(level_boxes)
-            #box_indices = tf.stop_gradient(box_indices)
+            level_boxes = tf.stop_gradient(level_boxes)
+            box_indices = tf.stop_gradient(box_indices)
 
             # Crop and Resize
             # From Mask R-CNN paper: "We sample four regular locations, so

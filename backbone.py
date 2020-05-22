@@ -24,7 +24,7 @@ class ResidualBlock(tf.keras.models.Model):
 
         return
 
-    def call(self, x, training=False):
+    def call(self, x, training):
         y = self.c1(x)
         y = self.bn1(y, training=training)
         y = self.relu1(y)
@@ -43,58 +43,6 @@ class ResidualBlock(tf.keras.models.Model):
             return tf.keras.layers.Conv2D(channels_out, (1, 1), strides=(2, 2), name=name+"-conv-shortcut")
         else:
             return lambda x : x
-
-class Resnet34(tf.keras.models.Model):
-
-    def __init__(self):
-        super().__init__()
-
-        self.conv1 = tf.keras.layers.Conv2D(64, (7, 7), strides=(2, 2), padding="same")
-        self.bn1 = tf.keras.layers.BatchNormalization()
-        self.relu1 = tf.keras.layers.Activation("relu")
-
-        self.pool1 = tf.keras.layers.MaxPool2D((3, 3), (2, 2), padding="same")
-
-        self.block2 = [ResidualBlock(64, (3, 3)) for _ in range(3)]
-        self.conv2 = self.block2[-1].relu3
-
-        self.block3 = [ResidualBlock(128, (3, 3), 64)]
-        self.block3.extend([ResidualBlock(128, (3, 3)) for _ in range(3)])
-        self.conv3 = self.block3[-1].relu3
-
-        self.block4 = [ResidualBlock(256, (3, 3), 128)]
-        self.block4.extend([ResidualBlock(256, (3, 3)) for _ in range(5)])
-        self.conv4 = self.block4[-1].relu3
-
-        self.block5 = [ResidualBlock(512, (3, 3), 256)]
-        self.block5.extend([ResidualBlock(512, (3, 3)) for _ in range(2)])
-        self.conv5 = self.block5[-1].relu3
-
-        return
-
-    def call(self, x):
-        y = self.conv1(x)
-        y = self.bn1(y)
-        y = self.relu1(y)
-        y = self.pool1(y)
-
-        for b in self.block2:
-            y = b(y)
-
-        for b in self.block3:
-            y = b(y)
-
-        for b in self.block4:
-            y = b(y)
-
-        for b in self.block5:
-            y = b(y)
-
-        return y
-
-    def model(self):
-        x = tf.keras.layers.Input(shape=(224, 224, 3))
-        return tf.keras.models.Model(inputs=[x], outputs=self.call(x))
 
 class Resnet34_FPN(tf.keras.models.Model):
 
@@ -144,26 +92,26 @@ class Resnet34_FPN(tf.keras.models.Model):
 
         #return self.compile(tf.keras.optimizers.SGD(1))
 
-    def call(self, x, training=False):
+    def call(self, x, training):
         y = self.conv1(x)
         y = self.bn1(y, training=training)
         y = self.relu1(y)
         y = self.pool1(y)
 
         for b in self.block2:
-            y = b(y)
+            y = b(y, training)
         y2 = y
 
         for b in self.block3:
-            y = b(y)
+            y = b(y, training)
         y3 = y
 
         for b in self.block4:
-            y = b(y)
+            y = b(y, training)
         y4 = y
 
         for b in self.block5:
-            y = b(y)
+            y = b(y, training)
         y5 = y
 
         m5 = self.M5(y)
@@ -187,7 +135,7 @@ class Resnet34_FPN(tf.keras.models.Model):
 
     def model(self):
         x = tf.keras.layers.Input(shape=(224, 224, 3))
-        return tf.keras.models.Model(inputs=[x], outputs=self.call(x))
+        return tf.keras.models.Model(inputs=[x], outputs=self.call(x, True))
 
 if __name__ == "__main__":
     m = Resnet34_FPN()
