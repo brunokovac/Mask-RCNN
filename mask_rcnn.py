@@ -96,7 +96,7 @@ def generate_mask_rcnn_labels(proposals, predicted_classes, predicted_bbox_delta
         proposal_i_classes = tf.gather(gt_classes_i, gt_classes_indices)
         mask_rcnn_classes.append(pad_classes_with_zeros(proposal_i_classes, config.MAX_ROIS - tf.shape(positive_roi_indices)[0]))
 
-        proposal_i_predicted_classes = tf.gather_nd(predicted_classes_i, positive_roi_indices)
+        proposal_i_predicted_classes = tf.gather_nd(predicted_classes_i, all_indices)
         mask_rcnn_predicted_classes.append(pad_softmaxes_with_zero_class(proposal_i_predicted_classes, config.MAX_ROIS - tf.shape(all_indices)[0]))
 
         matched_gt_boxes = tf.gather(gt_bboxes_i, gt_classes_indices)
