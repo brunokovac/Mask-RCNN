@@ -33,5 +33,5 @@ def draw_losses_graphs(title, file):
     plt.show()
 
 if __name__ == "__main__":
-    draw_losses_graphs("TRAIN LOSSES", config.TRAIN_LOSSES_FILE)
-    draw_losses_graphs("VALID LOSSES", config.VALID_LOSSES_FILE)
+    draw_losses_graphs("TRAIN-LOSSES", config.TRAIN_LOSSES_FILE)
+    draw_losses_graphs("VALID-LOSSES", config.VALID_LOSSES_FILE)
