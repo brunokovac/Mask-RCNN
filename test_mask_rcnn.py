@@ -8,9 +8,8 @@ import mask_rcnn
 import numpy as np
 import image_util
 
-tf.executing_eagerly()
-#ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 5)
-ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 2)
+ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 5)
+#ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 2)
 anchors = anchor_utils.get_all_anchors(config.IMAGE_SIZE, config.ANCHOR_SCALES, config.ANCHOR_RATIOS)
 
 backbone = backbone.Resnet34_FPN()

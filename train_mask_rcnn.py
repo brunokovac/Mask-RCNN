@@ -68,7 +68,7 @@ valid_dataset = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/valid_list.txt
 #ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 1)
 anchors = anchor_utils.get_all_anchors(config.IMAGE_SIZE, config.ANCHOR_SCALES, config.ANCHOR_RATIOS)
 
-optimizer = tf.keras.optimizers.SGD(lr=0.0005, momentum=0.9, decay=1e-4, nesterov=True)
+optimizer = tf.keras.optimizers.SGD(lr=0.001, momentum=0.9, decay=1e-4)
 
 backbone = backbone.Resnet34_FPN()
 rpn = rpn.RPN(backbone, 3)
