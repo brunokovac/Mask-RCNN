@@ -74,7 +74,7 @@ class Resnet34_FPN(tf.keras.models.Model):
         self.P5 = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (3, 3), strides=(1, 1), padding="same", name="P5")
         self.upsampling5 = tf.keras.layers.UpSampling2D((2, 2), interpolation="nearest")
 
-        self.P6 = tf.keras.layers.MaxPool2D((1, 1), (2, 2), padding="same", name="P6")
+        self.P6 = tf.keras.layers.MaxPool2D((1, 1), (2, 2), name="P6")
 
         self.pre_M4_conv = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (1, 1), strides=(1, 1), padding="same", name="pre_M4_conv")
         self.M4 = tf.keras.layers.Add()
@@ -90,6 +90,16 @@ class Resnet34_FPN(tf.keras.models.Model):
         self.M2 = tf.keras.layers.Add()
         self.P2 = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (3, 3), strides=(1, 1), padding="same", name="P2")
 
+        #pretrained
+        self.resnet = tf.keras.applications.ResNet50(include_top=False, weights="imagenet")
+        self.conv2 = self.resnet.get_layer('conv2_block2_out').output
+        self.conv3 = self.resnet.get_layer('conv3_block4_out').output
+        self.conv4 = self.resnet.get_layer('conv4_block6_out').output
+        self.conv5 = self.resnet.get_layer('conv5_block3_out').output
+        self.resnet_outputs = tf.keras.models.Model(inputs=self.resnet.input, outputs=[self.conv2, self.conv3, self.conv4, self.conv5])
+        '''self.resnet.trainable = False
+        self.resnet_outputs.trainable = False'''
+
         #return self.compile(tf.keras.optimizers.SGD(1))
 
     def call(self, x, training):
@@ -97,6 +107,7 @@ class Resnet34_FPN(tf.keras.models.Model):
         y = self.bn1(y, training=training)
         y = self.relu1(y)
         y = self.pool1(y)
+        print(self.bn1.moving_variance)
 
         for b in self.block2:
             y = b(y, training)
@@ -114,7 +125,9 @@ class Resnet34_FPN(tf.keras.models.Model):
             y = b(y, training)
         y5 = y
 
-        m5 = self.M5(y)
+        y2, y3, y4, y5 = self.resnet_outputs(x, training=training)
+
+        m5 = self.M5(y5)
         p5 = self.P5(m5)
 
         p6 = self.P6(p5)

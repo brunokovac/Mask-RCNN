@@ -1,8 +1,8 @@
 __pycache__/
 .idea/
 dataset/
-TRAIN-LOSSES.png
-VALID-LOSSES.png
-train-losses.txt
-valid-losses.txt
-
+TRAIN*
+VALID*
+img*
+*.zip
+ckpts*

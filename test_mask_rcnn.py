@@ -8,8 +8,8 @@ import mask_rcnn
 import numpy as np
 import image_util
 
-ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 5)
-#ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 2)
+#ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 5)
+ds = dataset_util.Dataset("dataset/VOC2012", "/valid_list.txt", 5)
 anchors = anchor_utils.get_all_anchors(config.IMAGE_SIZE, config.ANCHOR_SCALES, config.ANCHOR_RATIOS)
 
 backbone = backbone.Resnet34_FPN()
@@ -34,10 +34,10 @@ for _ in range(ds.total_batches):
         for j in range(len(config.CLASSES) - 1):
             for k in range(len(predicted_bboxes[i][j])):
                 boxes.append(predicted_bboxes[i][j][k])
-                texts.append("{} {:.2f}".format(config.CLASSES[j + 1], classes_scores[i][j][k]))
+                texts.append("{} {:.2f}".format(config.CLASSES[j + 1].upper(), classes_scores[i][j][k]))
 
         image = images[i][:img_sizes[i][0], :img_sizes[i][1]]
-        image_util.draw_bounding_boxes_from_array("img-test{}.png".format(i), image.astype(np.uint8), boxes, texts)
+        image_util.draw_bounding_boxes_from_array("img-valid-{}.png".format(i), image.astype(np.uint8), boxes, texts)
 
     import sys
     sys.exit(0)

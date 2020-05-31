@@ -133,6 +133,21 @@ class Mask_RCNN(tf.keras.models.Model):
 
         self.bbox_deltas = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(num_classes * 4, name="mask-bbox-deltas"), name="mask-td6")
 
+
+        # mask head
+        self.mask_head = []
+        for i in range(4):
+            self.mask_head.append(tf.keras.layers.TimeDistributed(
+                tf.keras.layers.Conv2D(256, (3, 3), padding="same", name="mask-conv{}".format(i)), name="mask-head-conv-td{}".format(i)))
+            self.mask_head.append(tf.keras.layers.TimeDistributed(
+                tf.keras.layers.BatchNormalization(name="mask-head-bn{}".format(i)), name="mask-head-bn-td{}".format(i)))
+            self.mask_head.append(tf.keras.layers.TimeDistributed(tf.keras.layers.Activation("relu")))
+
+        self.mask_deconv = tf.keras.layers.TimeDistributed(
+            tf.keras.layers.Conv2DTranspose(256, (2, 2), strides=(2, 2), activation="relu", name="mask-deconv1"), name="mask-head-td5")
+        self.mask_conv5 = tf.keras.layers.TimeDistributed(
+            tf.keras.layers.Conv2D(num_classes, (1, 1), activation="sigmoid", name="mask-conv5"), name="mask-head-td6")
+
         #return self.compile(tf.keras.optimizers.SGD(1))
 
     def call(self, inputs, training):
@@ -147,8 +162,8 @@ class Mask_RCNN(tf.keras.models.Model):
         num_rois = config.TRAIN_POST_NMS_TOP_N_PER_IMAGE if training else config.TEST_POST_NMS_TOP_N_PER_IMAGE
         proposals = self.get_proposals_for_batch(fg_bg_softmaxes, rpn_bbox_deltas, img_sizes, training)
         proposals = tf.reshape(proposals, [tf.shape(x)[0], num_rois, 4])
-        rois = self.map_proposals_to_fpn_levels(proposals, levels)
         rois_shape = config.ROIS_SHAPE
+        rois = self.map_proposals_to_fpn_levels(proposals, levels, rois_shape)
 
         y = tf.reshape(rois, [tf.shape(x)[0], num_rois, config.FPN_NUM_CHANNELS * rois_shape[0] * rois_shape[1]])
         y = self.fc1(y)
@@ -163,6 +178,16 @@ class Mask_RCNN(tf.keras.models.Model):
 
         bbox_deltas = self.bbox_deltas(y)
         bbox_deltas = tf.reshape(bbox_deltas, [tf.shape(x)[0], num_rois, self.num_classes, 4])
+
+        # mask head
+        '''mask_rois_shape = config.MASK_ROIS_SHAPE
+        mask_rois = self.map_proposals_to_fpn_levels(proposals, levels, mask_rois_shape)
+
+        y = tf.reshape(mask_rois, [tf.shape(x)[0], num_rois, config.FPN_NUM_CHANNELS * mask_rois_shape[0] * mask_rois_shape[1]])
+        for layer in self.mask_head:
+            y = layer(y)
+        y = self.mask_deconv(y)
+        y = self.mask_conv5(y)'''
 
         return fg_bg_softmaxes, rpn_bbox_deltas, classes_softmax, bbox_deltas, proposals
 
@@ -222,7 +247,7 @@ class Mask_RCNN(tf.keras.models.Model):
         bboxes = tf.gather_nd(bboxes, correct_boxes_indices)
 
         nms_scores = tf.gather_nd(class_softmax, correct_boxes_indices)
-        nms_indices = tf.image.non_max_suppression(bboxes, nms_scores, config.TEST_MAX_BOXES_PER_IMAGE,
+        nms_indices = tf.image.non_max_suppression(bboxes, nms_scores, config.TEST_MAX_BOXES_PER_CLASS,
                                                    iou_threshold=config.TEST_NMS_IOU_THRESHOLD)
 
         bboxes = tf.gather(bboxes, nms_indices)
@@ -309,7 +334,7 @@ class Mask_RCNN(tf.keras.models.Model):
         return tf.convert_to_tensor(boxes)
 
     # ROI align from https://github.com/matterport/Mask_RCNN/blob/master/mrcnn/model.py
-    def map_proposals_to_fpn_levels(self, proposals, levels):
+    def map_proposals_to_fpn_levels(self, proposals, levels, rois_shape):
         boxes = tf.stack([proposals[:, :, 1], proposals[:, :, 0], proposals[:, :, 3], proposals[:, :, 2]], axis=2)
 
         # Feature Maps. List of feature maps from different level of the
@@ -346,7 +371,7 @@ class Mask_RCNN(tf.keras.models.Model):
             # Here we use the simplified approach of a single value per bin,
             # which is how it's done in tf.crop_and_resize()
             # Result: [batch * num_boxes, pool_height, pool_width, channels]
-            pooled.append(tf.image.crop_and_resize(feature_maps[i], level_boxes, box_indices, config.ROIS_SHAPE, method="bilinear"))
+            pooled.append(tf.image.crop_and_resize(feature_maps[i], level_boxes, box_indices, rois_shape, method="bilinear"))
 
         # Pack pooled features into one tensor
         pooled = tf.concat(pooled, axis=0)

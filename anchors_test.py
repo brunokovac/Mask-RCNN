@@ -2,6 +2,7 @@ import numpy as np
 import config
 import random
 import dataset_util
+import image_util
 
 def get_all_anchors(image_dimensions, scales, ratios):
     anchors = []
@@ -87,8 +88,8 @@ def get_rpn_classes_and_bbox_deltas_for_single_image(anchors, gt_bboxes):
     rpn_classes[max_bboxes < config.NEGATIVE_ANCHOR_THRESHOLD] = -1
     rpn_classes[max_bboxes > config.POSITIVE_ANCHOR_THRESHOLD] = 1
 
-    max_overlaps_by_bbox = np.max(overlaps, axis=0)
-    rpn_classes[np.argwhere(overlaps == max_overlaps_by_bbox)[:, 0]] = 1
+    #max_overlaps_by_bbox = np.max(overlaps, axis=0)
+    #rpn_classes[np.argwhere(overlaps == max_overlaps_by_bbox)[:, 0]] = 1
 
     MAX_ANCHORS = config.MAX_ANCHORS
 
@@ -123,47 +124,26 @@ def get_rpn_classes_and_bbox_deltas(batch_size, anchors, gt_bboxes):
     return rpn_classes, rpn_bbox_deltas
 
 if __name__ == "__main__":
+    np.random.seed(110)
 
-    by_level = [
-        [50, 60, 70, 80],
-        [90, 100, 110, 120],
-        [130, 140, 150, 160],
-        [170, 180, 190, 200],
-        [210, 220, 230, 240]
-    ]
+    anchors = get_all_anchors(config.IMAGE_SIZE, config.ANCHOR_SCALES, config.ANCHOR_RATIOS)
 
-    anchors_scales = [75, 140, 210, 280, 350]
-    for _ in range(10):
-        anchors_scales_i = []
-        for level in range(len(by_level)):
-            anchors_scales_i.append(random.choice(by_level[level]))
-        anchors_scales.append(anchors_scales_i)
+    batch_size = 5
+    #ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/valid_list.txt", batch_size)
+    ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", batch_size)
 
-    anchors_scales = [
-        [90, 140, 200, 250, 320],
-        [80, 130, 180, 240, 300],
-        [85, 150, 210, 260, 340],
-        [95, 140, 210, 280, 350],
-        [90, 135, 185, 230, 320]
-    ]
+    data1, data2_2, data3, d4 = ds.next_batch()
+    data2_2, data3_2 = get_rpn_classes_and_bbox_deltas(len(data1), anchors, data2_2)
 
-    #best [95, 145, 200, 260, 350] 44.07723995880536
-    anchors = [get_all_anchors((512, 512), scale, [(1, 1), (1, 2), (2, 1)]) for scale in anchors_scales]
-    sums = np.zeros(len(anchors_scales))
+    for i in range(len(data1)):
+        img = data1[i]
+        gt_rpn_classes_i = data2_2[i]
+        image_util.draw_bounding_boxes_from_array("anchors-sa2-{}.png".format(i), img.astype(np.uint8), anchors[gt_rpn_classes_i == 1])
 
-    batch_size = 20
-    ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/all_list.txt", batch_size)
-    #ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", batch_size)
+    import sys; sys.exit(0)
 
-    for j in range(ds.total_batches):
-        for i in range(len(anchors)):
-            data1, data2_2, data3, d4 = ds.next_batch()
-            data2_2, data3_2 = get_rpn_classes_and_bbox_deltas(len(data1), anchors[i], data2_2)
+    for i in range(len(data1)):
+        img = data1[i]
+        gt_rpn_classes_i = data2_2[i]
+        image_util.draw_bounding_boxes_from_array("anchors-all-{}.png".format(i), img.astype(np.uint8), anchors[:128*128*3:100])
 
-            ind = np.where(data2_2 == 1)[0]
-            sums[i] += len(ind)
-
-        print("batch", j, sums, sums / ((j+1) * batch_size))
-
-    for i in range(len(anchors_scales)):
-        print(anchors_scales[i], sums[i] / len(ds.data_names))

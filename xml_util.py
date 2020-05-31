@@ -25,6 +25,21 @@ def get_bboxes(path):
     return bboxes, object_classes
 
 if __name__ == "__main__":
-    img1, img2 = get_bboxes("dataset/VOC2012/Annotations/2007_000032.xml")
-    print(img1.shape)
-    print(img1.dtype)
+    import os
+
+    scales = np.zeros(52)
+
+    path = "dataset/VOC2012/Annotations"
+    for file in os.listdir(path):
+        boxes, _ = get_bboxes(path + "/" + file)
+        for box in boxes:
+            area = (box[2] - box[0]) * (box[3] - box[1])
+
+            if area == 0:
+                break
+
+            index = int(np.sqrt(area) // 10)
+            scales[index] += 1
+
+    for i in range(len(scales)):
+        print(i * 10, scales[i])

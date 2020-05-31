@@ -13,7 +13,6 @@ class RPN(tf.keras.models.Model):
         self.relu = tf.keras.layers.Activation("relu")
 
         self.fg_bg_conv = tf.keras.layers.Conv2D(self.num_anchors * 2, (1, 1), name="rpn-fg-bg-conv")
-
         self.fg_bg_softmax = tf.keras.layers.Activation("softmax", name="rpn-fg-bg-softmax")
 
         self.bbox_conv = tf.keras.layers.Conv2D(self.num_anchors * 4, (1, 1), name="rpn-bbox-conv")
@@ -33,14 +32,14 @@ class RPN(tf.keras.models.Model):
             y = self.relu(y)
 
             fg_bg_conv = self.fg_bg_conv(y)
-            fg_bg = tf.reshape(fg_bg_conv, [tf.shape(x)[0], -1, 2])
+            fg_bg = tf.reshape(fg_bg_conv, [x.shape[0], -1, 2])
             fg_bgs.append(fg_bg)
 
             fg_bg_softmax = self.fg_bg_softmax(fg_bg)
             fg_bg_softmaxes.append(fg_bg_softmax)
 
             bbox_conv = self.bbox_conv(y)
-            bbox = tf.reshape(bbox_conv, [tf.shape(x)[0], -1, 4])
+            bbox = tf.reshape(bbox_conv, [x.shape[0], -1, 4])
             bbox_deltas.append(bbox)
 
         fg_bgs = tf.concat(fg_bgs, axis=1)
