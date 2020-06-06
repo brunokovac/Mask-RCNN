@@ -38,5 +38,16 @@ def mask_rcnn_bbox_loss(gt_classes, gt_bboxes, predicted_bboxes):
     diff = tf.abs(selected_gt_bboxes - selected_predicted_bboxes)
     less_than_one = tf.cast(tf.less(diff, 1.0), "float32")
     loss = (less_than_one * 0.5 * diff ** 2) + (1 - less_than_one) * (diff - 0.5)
-    loss = tf.reduce_mean(loss)
-    return loss
+    return tf.reduce_mean(loss) if loss.shape[0] != 0 else 0.0
+
+def mask_rcnn_mask_loss(gt_classes, gt_masks, predicted_masks):
+    positive_indices = tf.cast(tf.where(gt_classes > 0), "int32")
+    classes_indices = tf.gather_nd(gt_classes, positive_indices)
+    all_indices = tf.concat([positive_indices, tf.transpose([classes_indices])], axis=1)
+
+    selected_gt_masks = tf.gather_nd(gt_masks, positive_indices)
+    selected_predicted_masks = tf.gather_nd(predicted_masks, all_indices)
+
+    losses = tf.keras.losses.BinaryCrossentropy(reduction="none")(selected_gt_masks, selected_predicted_masks)
+    selected_losses = tf.gather_nd(losses, tf.where(tf.greater(losses, 0)))
+    return tf.reduce_mean(selected_losses) if selected_losses.shape[0] != 0 else 0.0

@@ -15,11 +15,12 @@ import image_util
 import losses
 
 if __name__ == "__main__":
-    tf.executing_eagerly()
+    #tf.executing_eagerly()
+    #np.random.seed(101)
     #train_dataset = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 2)
     train_dataset = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 5)
     #valid_dataset = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/valid_list.txt", 2)
-    valid_dataset = dataset_util.Dataset("dataset/VOC2012", "/valid_list.txt", 5)
+    valid_dataset = dataset_util.Dataset("dataset/VOC-2012-ostalo", "/valid_list.txt", 5)
     anchors = anchor_utils.get_all_anchors(config.IMAGE_SIZE, config.ANCHOR_SCALES, config.ANCHOR_RATIOS)
 
     backbone2 = backbone.Resnet34_FPN()
@@ -30,15 +31,14 @@ if __name__ == "__main__":
     manager = tf.train.CheckpointManager(checkpoint, config.WEIGHTS_DIR, max_to_keep=4)
     if manager.latest_checkpoint:
         print("Restoring...", manager.latest_checkpoint)
-        images, gt_boxes, gt_classes, img_sizes = train_dataset.next_batch()
-        #model([images, img_sizes], training=False)
+        model([np.random.rand(1, 512, 512, 3), np.array([[512, 512]])], training=False)
         checkpoint.restore(manager.latest_checkpoint)
 
-    images, gt_boxes, gt_classes, img_sizes = train_dataset.next_batch()
+    images, gt_boxes, gt_classes, gt_masks, img_sizes = train_dataset.next_batch()
     gt_rpn_classes, gt_rpn_bbox_deltas = anchor_utils.get_rpn_classes_and_bbox_deltas(len(images), anchors, gt_boxes)
 
     data = [images, img_sizes]
-    _, _, rpn_fg_bg_softmaxes, rpn_bbox_deltas, mask_rcnn_classes_softmax, mask_rcnn_bbox_deltas, proposals = model(data, training=False)
+    _, _, _, rpn_fg_bg_softmaxes, rpn_bbox_deltas, mask_rcnn_classes_softmax, mask_rcnn_bbox_deltas, proposals = model(data, training=False)
     ind = np.where(gt_rpn_classes == 1)
 
     for i in range(len(images)):
@@ -68,16 +68,16 @@ if __name__ == "__main__":
 
         image_util.draw_bounding_boxes_from_array("deltas-train{}.png".format(i), images[i].astype(np.uint8), boxes2)
 
-    images, gt_boxes, gt_classes, img_sizes = valid_dataset.next_batch()
+    images, gt_boxes, gt_classes, gt_masks, img_sizes = valid_dataset.next_batch()
     gt_rpn_classes, gt_rpn_bbox_deltas = anchor_utils.get_rpn_classes_and_bbox_deltas(len(images), anchors, gt_boxes)
 
     data = [images, img_sizes]
-    _, _, rpn_fg_bg_softmaxes, rpn_bbox_deltas, mask_rcnn_classes_softmax, mask_rcnn_bbox_deltas, proposals = model(data, training=False)
+    _, _, _, rpn_fg_bg_softmaxes, rpn_bbox_deltas, mask_rcnn_classes_softmax, mask_rcnn_bbox_deltas, proposals = model(data, training=False)
     print(rpn_bbox_deltas.shape, proposals.shape)
     print(rpn_fg_bg_softmaxes[gt_rpn_classes == 1])
 
     for i in range(len(images)):
-        image_util.draw_bounding_boxes_from_array("valid-proposals{}.png".format(i), images[i].astype(np.uint8), proposals[i][:5])
+        image_util.draw_bounding_boxes_from_array("valid-proposals{}.png".format(i), images[i].astype(np.uint8), proposals[i][:10])
 
     for i in range(len(images)):
         gt_rpn_classes_i = gt_rpn_classes[i]

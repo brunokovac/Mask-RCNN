@@ -49,7 +49,7 @@ class Resnet34_FPN(tf.keras.models.Model):
     def __init__(self):
         super().__init__()
 
-        self.conv1 = tf.keras.layers.Conv2D(64, (7, 7), strides=(2, 2), padding="same", name="block1-conv")
+        '''self.conv1 = tf.keras.layers.Conv2D(64, (7, 7), strides=(2, 2), padding="same", name="block1-conv")
         self.bn1 = tf.keras.layers.BatchNormalization(name="block1-bn")
         self.relu1 = tf.keras.layers.Activation("relu")
 
@@ -68,7 +68,7 @@ class Resnet34_FPN(tf.keras.models.Model):
 
         self.block5 = [ResidualBlock("block5", 512, (3, 3), 256, downsize=True)]
         self.block5.extend([ResidualBlock("block5-{}".format(i), 512, (3, 3)) for i in range(2)])
-        self.conv5 = self.block5[-1].relu3
+        self.conv5 = self.block5[-1].relu3'''
 
         self.M5 = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (1, 1), strides=(1, 1), padding="same", name="M5")
         self.P5 = tf.keras.layers.Conv2D(config.FPN_NUM_CHANNELS, (3, 3), strides=(1, 1), padding="same", name="P5")
@@ -103,7 +103,7 @@ class Resnet34_FPN(tf.keras.models.Model):
         #return self.compile(tf.keras.optimizers.SGD(1))
 
     def call(self, x, training):
-        y = self.conv1(x)
+        '''y = self.conv1(x)
         y = self.bn1(y, training=training)
         y = self.relu1(y)
         y = self.pool1(y)
@@ -123,7 +123,7 @@ class Resnet34_FPN(tf.keras.models.Model):
 
         for b in self.block5:
             y = b(y, training)
-        y5 = y
+        y5 = y'''
 
         y2, y3, y4, y5 = self.resnet_outputs(x, training=training)
 

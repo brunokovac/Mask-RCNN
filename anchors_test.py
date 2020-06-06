@@ -132,7 +132,7 @@ if __name__ == "__main__":
     #ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/valid_list.txt", batch_size)
     ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", batch_size)
 
-    data1, data2_2, data3, d4 = ds.next_batch()
+    data1, data2_2, data3, d5, d4 = ds.next_batch()
     data2_2, data3_2 = get_rpn_classes_and_bbox_deltas(len(data1), anchors, data2_2)
 
     for i in range(len(data1)):
