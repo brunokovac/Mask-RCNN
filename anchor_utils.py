@@ -152,8 +152,8 @@ if __name__ == "__main__":
     sums = np.zeros(len(anchors_scales))
 
     batch_size = 20
-    ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/all_list.txt", batch_size)
-    #ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", batch_size)
+    ds = dataset_util.VOC2012_Dataset("DATASET/VOC2012/VOC2012", "/all_list.txt", batch_size)
+    #ds = dataset_util.VOC2012_Dataset("dataset/VOC2012", "/train_list.txt", batch_size)
 
     for j in range(ds.total_batches):
         for i in range(len(anchors)):

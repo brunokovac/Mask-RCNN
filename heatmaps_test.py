@@ -36,10 +36,10 @@ def draw_heatmaps(name, image, softmax):
 
 if __name__ == "__main__":
     #tf.executing_eagerly()
-    #train_dataset = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 2)
-    train_dataset = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 5)
-    #valid_dataset = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/valid_list.txt", 2)
-    valid_dataset = dataset_util.Dataset("dataset/VOC2012", "/valid_list.txt", 5)
+    #train_dataset = dataset_util.VOC2012_Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 2)
+    train_dataset = dataset_util.VOC2012_Dataset("dataset/VOC2012", "/train_list.txt", 5)
+    #valid_dataset = dataset_util.VOC2012_Dataset("DATASET/VOC2012/VOC2012", "/valid_list.txt", 2)
+    valid_dataset = dataset_util.VOC2012_Dataset("dataset/VOC2012", "/valid_list.txt", 5)
     anchors = anchor_utils.get_all_anchors(config.IMAGE_SIZE, config.ANCHOR_SCALES, config.ANCHOR_RATIOS)
 
     backbone2 = backbone.Resnet34_FPN()

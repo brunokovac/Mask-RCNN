@@ -195,7 +195,8 @@ class Mask_RCNN(tf.keras.models.Model):
 
         # mask head
         mask_rois_shape = config.MASK_ROIS_SHAPE
-        mask_rois = self.map_proposals_to_fpn_levels(proposals[:, :config.TOP_N_MASK_PROPOSALS], levels, mask_rois_shape)
+        top_n_mask_proposals = config.TOP_N_MASK_PROPOSALS if training else config.TEST_POST_NMS_TOP_N_PER_IMAGE
+        mask_rois = self.map_proposals_to_fpn_levels(proposals[:, :top_n_mask_proposals], levels, mask_rois_shape)
 
         y = mask_rois
         for layer in self.mask_head:
@@ -467,8 +468,8 @@ if __name__ == "__main__":
     num_classes = len(config.CLASSES)
     model = Mask_RCNN(rpn_model, anchors, num_classes)
 
-    #ds = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 2)
-    ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 2)
+    #ds = dataset_util.VOC2012_Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 2)
+    ds = dataset_util.VOC2012_Dataset("dataset/VOC2012", "/train_list.txt", 2)
     data1, data2, data3, data5, d4 = ds.next_batch()
     data2, data3 = anchor_utils.get_rpn_classes_and_bbox_deltas(len(data1), anchors, data2)
 

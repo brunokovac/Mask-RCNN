@@ -88,8 +88,8 @@ def get_rpn_classes_and_bbox_deltas_for_single_image(anchors, gt_bboxes):
     rpn_classes[max_bboxes < config.NEGATIVE_ANCHOR_THRESHOLD] = -1
     rpn_classes[max_bboxes > config.POSITIVE_ANCHOR_THRESHOLD] = 1
 
-    #max_overlaps_by_bbox = np.max(overlaps, axis=0)
-    #rpn_classes[np.argwhere(overlaps == max_overlaps_by_bbox)[:, 0]] = 1
+    max_overlaps_by_bbox = np.max(overlaps, axis=0)
+    rpn_classes[np.argwhere(overlaps == max_overlaps_by_bbox)[:, 0]] = 1
 
     MAX_ANCHORS = config.MAX_ANCHORS
 
@@ -124,26 +124,18 @@ def get_rpn_classes_and_bbox_deltas(batch_size, anchors, gt_bboxes):
     return rpn_classes, rpn_bbox_deltas
 
 if __name__ == "__main__":
-    np.random.seed(110)
-
     anchors = get_all_anchors(config.IMAGE_SIZE, config.ANCHOR_SCALES, config.ANCHOR_RATIOS)
 
     batch_size = 5
     #ds = dataset_util.VOC2012_Dataset("DATASET/VOC2012/VOC2012", "/valid_list.txt", batch_size)
-    ds = dataset_util.VOC2012_Dataset("dataset/VOC2012", "/train_list.txt", batch_size)
+    ds = dataset_util.AOLP_Dataset("dataset/AOLP/AOLP", "/train_list.txt", batch_size)
 
-    data1, data2_2, data3, d5, d4 = ds.next_batch()
-    data2_2, data3_2 = get_rpn_classes_and_bbox_deltas(len(data1), anchors, data2_2)
-
-    for i in range(len(data1)):
-        img = data1[i]
-        gt_rpn_classes_i = data2_2[i]
-        image_util.draw_bounding_boxes_from_array("anchors-sa2-{}.png".format(i), img.astype(np.uint8), anchors[gt_rpn_classes_i == 1])
-
-    import sys; sys.exit(0)
+    data1, data2_1, data3, d5, d4 = ds.next_batch()
+    data2_2, data3_2 = get_rpn_classes_and_bbox_deltas(len(data1), anchors, data2_1)
 
     for i in range(len(data1)):
         img = data1[i]
         gt_rpn_classes_i = data2_2[i]
-        image_util.draw_bounding_boxes_from_array("anchors-all-{}.png".format(i), img.astype(np.uint8), anchors[:128*128*3:100])
+        image_util.draw_bounding_boxes_from_array("anchors-{}.png".format(i), img.astype(np.uint8), anchors[gt_rpn_classes_i == 1])
+        #image_util.draw_bounding_boxes_from_array("anchors-gt-{}.png".format(i), img.astype(np.uint8), data2_1[i])
 

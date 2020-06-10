@@ -5,7 +5,7 @@ import numpy as np
 model = tf.keras.applications.ResNet50(include_top=True, weights="imagenet")
 print(model.summary())
 
-ds = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 2)
+ds = dataset_util.VOC2012_Dataset("dataset/VOC2012", "/train_list.txt", 2)
 images, gt_boxes, gt_classes, gt_masks, img_sizes = ds.next_batch()
 
 print(np.argmax(model(images), axis=1))

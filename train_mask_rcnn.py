@@ -34,65 +34,35 @@ def train_step(model, optimizer, data, labels):
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
     return rpn_object_loss, rpn_bbox_loss, mask_rcnn_class_loss, mask_rcnn_bbox_loss, mask_rcnn_mask_loss
 
-def calculate_average_ap_on_batch(images, gt_boxes, gt_classes, pred_boxes, pred_classes, pred_classes_scores):
-    ap_sum = 0
+def calculate_average_ap_on_batch(images, gt_boxes, gt_classes, gt_masks, pred_boxes, pred_classes, pred_classes_scores, pred_masks):
+    mask_sum = 0
+    box_sum = 0
 
     for i in range(len(images)):
-        ap, _, _, _ = metrics.compute_ap(gt_boxes[i], gt_classes[i], [], pred_boxes[i], pred_classes[i],
-                                         pred_classes_scores[i], [])
-        ap_sum += ap
+        mask_ap, box_ap = metrics.compute_ap(gt_boxes[i], gt_classes[i], gt_masks[i], pred_boxes[i], pred_classes[i], pred_classes_scores[i], pred_masks[i])
+        mask_sum += mask_ap
+        box_sum += box_ap
 
-    return ap_sum, ap_sum / len(images)
+    return mask_sum, box_sum
 
 def calculate_map(dataset, model):
-    map_sum = 0
+    mask_sum = 0
+    box_sum = 0
 
     for _ in range(dataset.total_batches):
         images, gt_boxes, gt_classes, gt_masks, img_sizes = dataset.next_batch()
 
         data = [images, img_sizes]
-        pred_boxes, pred_classes_scores, pred_classes, rpn_fg_bg_softmaxes, rpn_bbox_deltas, \
+        pred_boxes, pred_classes_scores, pred_classes, pred_masks, rpn_fg_bg_softmaxes, rpn_bbox_deltas, \
         mask_rcnn_classes_softmax, mask_rcnn_bbox_deltas, mask_rcnn_masks, proposals = model(data, training=False)
 
-        map_sum += calculate_average_ap_on_batch(images, gt_boxes, gt_classes, pred_boxes, pred_classes, pred_classes_scores)[0]
+        mask_ap, box_ap = calculate_average_ap_on_batch(images, gt_boxes, gt_classes, gt_masks, pred_boxes, pred_classes, pred_classes_scores, mask_rcnn_masks)
+        mask_sum += mask_ap
+        box_sum += box_ap
 
-    return map_sum / len(dataset.data_names)
+    return mask_sum / len(dataset.data_names), box_sum / len(dataset.data_names)
 
-def valid(model, dataset, anchors):
-    print("*" * 10, "STARTING VALIDATION", "*" * 10)
-
-    valid_losses = np.zeros(4)
-
-    map_sum = 0
-    for _ in range(dataset.total_batches):
-        images, gt_boxes, gt_classes, gt_masks, img_sizes = dataset.next_batch()
-        gt_rpn_classes, gt_rpn_bbox_deltas = anchor_utils.get_rpn_classes_and_bbox_deltas(len(images), anchors, gt_boxes)
-
-        data = [images, img_sizes]
-        pred_boxes, pred_classes_scores, pred_classes, rpn_fg_bg_softmaxes, rpn_bbox_deltas, \
-        mask_rcnn_classes_softmax, mask_rcnn_bbox_deltas, mask_rcnn_masks, proposals = model(data, training=False)
-
-        map_sum += calculate_average_ap_on_batch(images, gt_boxes, gt_classes, pred_boxes, pred_classes, pred_classes_scores)
-
-        rpn_object_loss = losses.rpn_object_loss(gt_rpn_classes, rpn_fg_bg_softmaxes)
-        rpn_bbox_loss = losses.rpn_bbox_loss(gt_rpn_classes, gt_rpn_bbox_deltas, rpn_bbox_deltas)
-
-        mask_rcnn_gt_proposals, mask_rcnn_predicted_classes, mask_rcnn_predicted_bbox_deltas, \
-        mask_rcnn_gt_classes, mask_rcnn_gt_deltas, mask_rcnn_gt_masks = \
-            mask_rcnn.generate_mask_rcnn_labels(proposals, mask_rcnn_classes_softmax, mask_rcnn_bbox_deltas, gt_classes, gt_boxes)
-        mask_rcnn_class_loss = losses.mask_rcnn_class_loss(mask_rcnn_gt_classes, mask_rcnn_predicted_classes)
-        mask_rcnn_bbox_loss = losses.mask_rcnn_bbox_loss(mask_rcnn_gt_classes, mask_rcnn_gt_deltas, mask_rcnn_predicted_bbox_deltas)
-
-        valid_losses += [rpn_object_loss, rpn_bbox_loss, mask_rcnn_class_loss, mask_rcnn_bbox_loss]
-
-    valid_losses /= dataset.total_batches
-    map = map_sum / dataset.total_batches
-    print("*" * 15, "VALID", "*" * 15)
-    print("rpn_cls_loss={}, rpn_bbox_loss={}, mask_rcnn_cls_loss={}, mask_rcnn_bbox_loss={}, mAP={}".format(*valid_losses, map))
-    print("*" * 40)
-    return valid_losses, map
-
-def train(num_epochs, optimizer, anchors, train_dataset, valid_dataset):
+def train(num_epochs, optimizer, anchors, train_dataset, td_map, vd_map):
     max_map = float("inf")
     bigger_map_in_row = 0
     for epoch in range(1, num_epochs + 1):
@@ -122,21 +92,24 @@ def train(num_epochs, optimizer, anchors, train_dataset, valid_dataset):
             checkpoint.step.assign_add(1)
             manager.save()
 
-            #valid_map = calculate_map(train_dataset, model)
-            #print("Train mAP:", valid_map)
+            train_mask_map, train_box_map = calculate_map(td_map, model)
+            print("Train mAP:", train_mask_map, train_box_map)
 
-            valid_losses, valid_map = valid(model, valid_dataset, anchors)
+            valid_mask_map, valid_box_map = calculate_map(vd_map, model)
+            print("Valid mAP:", valid_mask_map, valid_box_map)
+
+            '''valid_losses, valid_map = valid(model, valid_dataset, anchors)
 
             with open(config.VALID_LOSSES_FILE, "a+") as f2:
-                f2.write("{} {} {} {}\n".format(*valid_losses))
+                f2.write("{} {} {} {}\n".format(*valid_losses))'''
 
-            if valid_map < max_map:
-                max_map = valid_map
+            if valid_mask_map < max_map:
+                max_map = valid_mask_map
                 bigger_map_in_row = 0
             else:
                 bigger_map_in_row += 1
 
-                if bigger_map_in_row == 10000:
+                if bigger_map_in_row == 10:
                     print("{}. bigger map in row, exiting".format(bigger_map_in_row))
                     sys.exit(0)
 
@@ -152,10 +125,11 @@ if __name__ == "__main__":
     checkpoint = tf.train.Checkpoint(optimizer=optimizer, net=model, step=tf.Variable(1))
     manager = tf.train.CheckpointManager(checkpoint, config.WEIGHTS_DIR, max_to_keep=4)
 
-    train_dataset = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 20)
-    #train_dataset = dataset_util.Dataset("dataset/VOC2012", "/train_list.txt", 2)
-    valid_dataset = dataset_util.Dataset("DATASET/VOC2012/VOC2012", "/valid_list.txt", 20)
-    #valid_dataset = dataset_util.Dataset("dataset/VOC2012", "/valid_list.txt", 2)
+    train_dataset = dataset_util.VOC2012_Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 12)
+    #train_dataset = dataset_util.VOC2012_Dataset("dataset/VOC2012", "/train_list.txt", 2)
+    td_map = dataset_util.VOC2012_Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 4)
+    vd_map = dataset_util.VOC2012_Dataset("DATASET/VOC2012/VOC2012", "/valid_list.txt", 4)
+    #valid_dataset = dataset_util.VOC2012_Dataset("dataset/VOC2012", "/valid_list.txt", 2)
 
     if manager.latest_checkpoint:
         print("Restoring...", manager.latest_checkpoint)
@@ -169,11 +143,4 @@ if __name__ == "__main__":
     map = calculate_map(valid_dataset, model)
     print("Valid mAP:", map)'''
 
-    train(500, optimizer, anchors, train_dataset, valid_dataset)
-
-    import sys; sys.exit(0)
-    optimizer.learning_rate = optimizer.learning_rate / 10
-    train(200, optimizer, anchors, train_dataset, valid_dataset)
-
-    optimizer.learning_rate = optimizer.learning_rate / 10
-    train(100, optimizer, anchors, train_dataset, valid_dataset)
+    train(500, optimizer, anchors, train_dataset, td_map, vd_map)
