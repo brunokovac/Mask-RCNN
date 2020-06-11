@@ -55,7 +55,7 @@ TEST_NMS_IOU_THRESHOLD = 0.3
 TEST_CLASSIFICATION_SCORE_THRESHOLD = 0.7
 TEST_MAX_BOXES_PER_CLASS = 10
 
-WEIGHTS_DIR = "ckpts21"
+WEIGHTS_DIR = "voc2012-ckpts"
 
-TRAIN_LOSSES_FILE = "train-losses3.txt"
-VALID_LOSSES_FILE = "valid-losses3.txt"
+TRAIN_LOSSES_FILE = "voc2012-train-losses.txt"
+VALID_LOSSES_FILE = "voc2012-valid-losses.txt"

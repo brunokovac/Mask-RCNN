@@ -92,10 +92,10 @@ def train(num_epochs, optimizer, anchors, train_dataset, td_map, vd_map):
             manager.save()
 
             train_mask_map, train_box_map = calculate_map(td_map, model)
-            print("Train mAP:", train_mask_map, train_box_map)
+            print("Train mAP: mask", train_mask_map, "bbox", train_box_map)
 
             valid_mask_map, valid_box_map = calculate_map(vd_map, model)
-            print("Valid mAP:", valid_mask_map, valid_box_map)
+            print("Valid mAP: mask", valid_mask_map, "bbox", valid_box_map)
 
             if valid_mask_map < max_map:
                 max_map = valid_mask_map

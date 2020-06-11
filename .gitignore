@@ -1,8 +1,8 @@
 __pycache__/
 .idea/
 dataset/
-TRAIN*
-VALID*
-img*
+*jpg
+*png
+*txt
 *.zip
 *ckpts*
