@@ -28,7 +28,6 @@ def train_step(model, optimizer, data, labels):
         mask_rcnn_mask_loss = losses.mask_rcnn_mask_loss(mask_rcnn_gt_classes, mask_rcnn_gt_masks, mask_rcnn_predicted_masks)
 
         loss = rpn_object_loss + rpn_bbox_loss + mask_rcnn_class_loss + mask_rcnn_bbox_loss + mask_rcnn_mask_loss
-        #loss = rpn_object_loss + rpn_bbox_loss
 
     grads = gt.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
@@ -98,11 +97,6 @@ def train(num_epochs, optimizer, anchors, train_dataset, td_map, vd_map):
             valid_mask_map, valid_box_map = calculate_map(vd_map, model)
             print("Valid mAP:", valid_mask_map, valid_box_map)
 
-            '''valid_losses, valid_map = valid(model, valid_dataset, anchors)
-
-            with open(config.VALID_LOSSES_FILE, "a+") as f2:
-                f2.write("{} {} {} {}\n".format(*valid_losses))'''
-
             if valid_mask_map < max_map:
                 max_map = valid_mask_map
                 bigger_map_in_row = 0
@@ -121,15 +115,17 @@ if __name__ == "__main__":
     rpn2 = rpn.RPN(backbone2, 3)
     model = mask_rcnn.Mask_RCNN(rpn2, anchors, len(config.CLASSES))
 
-    optimizer = tf.keras.optimizers.SGD(lr=0.002, momentum=0.9, decay=1e-4)
+    optimizer = tf.keras.optimizers.SGD(lr=0.004, momentum=0.9, decay=1e-4)
     checkpoint = tf.train.Checkpoint(optimizer=optimizer, net=model, step=tf.Variable(1))
     manager = tf.train.CheckpointManager(checkpoint, config.WEIGHTS_DIR, max_to_keep=4)
 
     train_dataset = dataset_util.VOC2012_Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 12)
-    #train_dataset = dataset_util.VOC2012_Dataset("dataset/VOC2012", "/train_list.txt", 2)
     td_map = dataset_util.VOC2012_Dataset("DATASET/VOC2012/VOC2012", "/train_list.txt", 4)
     vd_map = dataset_util.VOC2012_Dataset("DATASET/VOC2012/VOC2012", "/valid_list.txt", 4)
-    #valid_dataset = dataset_util.VOC2012_Dataset("dataset/VOC2012", "/valid_list.txt", 2)
+
+    '''train_dataset = dataset_util.AOLP_Dataset("DATASET/AOLP", "/train_list.txt", 10)
+    td_map = dataset_util.AOLP_Dataset("DATASET/AOLP", "/train_list.txt", 4)
+    vd_map = dataset_util.AOLP_Dataset("DATASET/AOLP", "/valid_list.txt", 4)'''
 
     if manager.latest_checkpoint:
         print("Restoring...", manager.latest_checkpoint)
@@ -138,9 +134,9 @@ if __name__ == "__main__":
         l1, l2, l3, l4, l5 = train_step(model, optimizer, [images, img_sizes], [gt_boxes, gt_classes, gt_masks, img_sizes, rpn_classes, rpn_bbox_deltas])
         checkpoint.restore(manager.latest_checkpoint).assert_consumed()
 
-    '''map = calculate_map(train_dataset, model)
-    print("Train mAP:", map)
-    map = calculate_map(valid_dataset, model)
-    print("Valid mAP:", map)'''
+    mask_map, box_map = calculate_map(td_map, model)
+    print("Train mAP: mask", mask_map, "bbox", box_map)
+    mask_map, box_map = calculate_map(vd_map, model)
+    print("Valid mAP: mask", mask_map, "bbox", box_map)
 
     train(500, optimizer, anchors, train_dataset, td_map, vd_map)

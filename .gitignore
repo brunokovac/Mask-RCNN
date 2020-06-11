@@ -5,4 +5,4 @@ TRAIN*
 VALID*
 img*
 *.zip
-ckpts*
+*ckpts*

@@ -70,7 +70,7 @@ def compute_matches(gt_boxes, gt_class_ids, gt_masks,
     if mask_mAP:
         overlaps = compute_overlaps_masks(pred_masks, gt_masks).numpy()
     else:
-        overlaps = get_overlaps(pred_boxes, gt_boxes)
+        overlaps = get_overlaps(pred_boxes, gt_boxes) if len(pred_boxes) != 0 else None
 
     # Loop through predictions and find matching ground truth boxes
     match_count = 0
@@ -141,7 +141,7 @@ def compute_ap(gt_boxes, gt_class_ids, gt_masks,
     gt_match, pred_match, overlaps = compute_matches(
         gt_boxes, gt_class_ids, gt_masks,
         pred_boxes, pred_class_ids, pred_scores, pred_masks,
-        iou_threshold)
+        iou_threshold, mask_mAP=False)
 
     # Compute precision and recall at each prediction box step
     precisions = np.cumsum(pred_match > -1) / (np.arange(len(pred_match)) + 1)

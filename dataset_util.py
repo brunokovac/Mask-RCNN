@@ -132,6 +132,8 @@ class AOLP_Dataset():
             boxes_path = self.path + self.localization + img_name + ".txt"
 
             img, height, width = image_util.load_image(img_path)
+            images.append(img)
+            hws.append([height, width])
 
             if not path_check.exists(boxes_path):
                 continue
@@ -149,11 +151,9 @@ class AOLP_Dataset():
                     gt_boxes[j][1] = tmp
             bboxes[:len(gt_boxes)] = gt_boxes
 
-            object_classes = np.zeros(config.MAX_OBJECTS_PER_IMAGE)
+            object_classes = np.zeros(config.MAX_OBJECTS_PER_IMAGE, dtype="int32")
             object_classes[:len(gt_boxes)] = 1
 
-            images.append(img)
-            hws.append([height, width])
             boxes.append(bboxes)
             classes.append(object_classes)
 

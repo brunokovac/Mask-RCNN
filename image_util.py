@@ -4,6 +4,7 @@ from skimage import io
 import config
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import cv2
 
 def load_image(path):
     img = io.imread(path)
@@ -73,40 +74,64 @@ def draw_bounding_boxes_and_masks_from_array(save_path, img, bboxes, masks, text
     save_path = save_path if save_path.endswith(".png") else save_path + ".png"
 
     plt.gca().set_axis_off()
-    plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
+    #plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
     plt.margins(0, 0)
     plt.gca().xaxis.set_major_locator(plt.NullLocator())
     plt.gca().yaxis.set_major_locator(plt.NullLocator())
     plt.savefig(save_path, bbox_inches='tight', pad_inches=0)
     return
 
-def draw_masks_from_array(save_path, img, bboxes, masks, texts):
+def draw_masks_from_array(save_path, img, bboxes, masks):
+    img = img.astype(np.uint8)
+    plt.figure()
+
+    blurred = cv2.GaussianBlur(img, (25, 25), 0)
+
+    mask_img = img.copy()
+    for i in range(len(bboxes)):
+        x1, y1, x2, y2 = bboxes[i]
+        x1, y1, x2, y2 = x1.numpy(), y1.numpy(), x2.numpy(), y2.numpy()
+
+        mask = masks[i]
+        extracted_mask = mask_img[y1:y2, x1:x2]
+        mask_img[y1:y2, x1:x2] = np.where(mask == 1, blurred[y1:y2, x1:x2], extracted_mask)
+
+    plt.imshow(mask_img, alpha=1)
+    save_path = save_path if save_path.endswith(".png") else save_path + ".png"
+
+    plt.gca().set_axis_off()
+    #plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
+    plt.margins(0, 0)
+    plt.gca().xaxis.set_major_locator(plt.NullLocator())
+    plt.gca().yaxis.set_major_locator(plt.NullLocator())
+    plt.savefig(save_path, bbox_inches='tight', pad_inches=0)
+    return
+
+def draw_masks_from_array22222(save_path, img, bboxes, masks):
     img = img.astype(np.uint8)
     plt.figure()
     plt.imshow(img)
 
     mask_img = img.copy()
     for i in range(len(bboxes)):
-        color = np.array([0, 0, 0])
+        color = np.array([211, 211, 211])
         x1, y1, x2, y2 = bboxes[i]
         x1, y1, x2, y2 = x1.numpy(), y1.numpy(), x2.numpy(), y2.numpy()
-
-        rect = plt.Rectangle((x1, y1), x2-x1, y2-y1, fill=False, edgecolor="green", linewidth=2)
-        plt.gca().add_patch(rect)
 
         mask = masks[i]
         extracted_mask = mask_img[y1:y2, x1:x2]
         mask_img[y1:y2, x1:x2] = np.where(mask == 1, mask * color, extracted_mask)
 
-    plt.imshow(mask_img, alpha=0.7)
+    plt.imshow(mask_img, alpha=1)
     save_path = save_path if save_path.endswith(".png") else save_path + ".png"
 
-    plt.gca().set_axis_off()
+    '''plt.gca().set_axis_off()
     plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
     plt.margins(0, 0)
     plt.gca().xaxis.set_major_locator(plt.NullLocator())
     plt.gca().yaxis.set_major_locator(plt.NullLocator())
-    plt.savefig(save_path, bbox_inches='tight', pad_inches=0)
+    plt.savefig(save_path, bbox_inches='tight', pad_inches=0)'''
+    plt.savefig(save_path)
     return
 
 if __name__ == "__main__":
