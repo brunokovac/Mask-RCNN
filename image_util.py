@@ -100,6 +100,7 @@ def draw_masks_from_array(save_path, img, bboxes, masks):
     save_path = save_path if save_path.endswith(".png") else save_path + ".png"
 
     plt.gca().set_axis_off()
+    plt.tight_layout()
     #plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
     plt.margins(0, 0)
     plt.gca().xaxis.set_major_locator(plt.NullLocator())
@@ -107,14 +108,13 @@ def draw_masks_from_array(save_path, img, bboxes, masks):
     plt.savefig(save_path, bbox_inches='tight', pad_inches=0)
     return
 
-def draw_masks_from_array22222(save_path, img, bboxes, masks):
+def draw_masks_from_array_test(save_path, img, bboxes, masks):
     img = img.astype(np.uint8)
     plt.figure()
-    plt.imshow(img)
 
-    mask_img = img.copy()
+    mask_img = np.zeros_like(img)
     for i in range(len(bboxes)):
-        color = np.array([211, 211, 211])
+        color = np.random.uniform(0, 100, 3)
         x1, y1, x2, y2 = bboxes[i]
         x1, y1, x2, y2 = x1.numpy(), y1.numpy(), x2.numpy(), y2.numpy()
 
@@ -122,16 +122,8 @@ def draw_masks_from_array22222(save_path, img, bboxes, masks):
         extracted_mask = mask_img[y1:y2, x1:x2]
         mask_img[y1:y2, x1:x2] = np.where(mask == 1, mask * color, extracted_mask)
 
-    plt.imshow(mask_img, alpha=1)
     save_path = save_path if save_path.endswith(".png") else save_path + ".png"
-
-    '''plt.gca().set_axis_off()
-    plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
-    plt.margins(0, 0)
-    plt.gca().xaxis.set_major_locator(plt.NullLocator())
-    plt.gca().yaxis.set_major_locator(plt.NullLocator())
-    plt.savefig(save_path, bbox_inches='tight', pad_inches=0)'''
-    plt.savefig(save_path)
+    plt.imsave(save_path, mask_img)
     return
 
 if __name__ == "__main__":

@@ -1,5 +1,0 @@
-Train mAP: mask 0.6962971065660489 bbox 0.9748390298514765
-Valid mAP: mask 0.3939048006009693 bbox 0.5110783153405128
-
-car
-https://img.freepik.com/free-photo/red-luxury-sedan-road_114579-5079.jpg?size=626&ext=jpg

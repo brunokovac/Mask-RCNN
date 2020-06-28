@@ -9,7 +9,7 @@ import numpy as np
 import image_util
 import metrics
 
-ds = dataset_util.VOC2012_Dataset("DATASET/VOC2012/VOC2012", "/valid_list.txt", 2)
+ds = dataset_util.VOC2012_Dataset("dataset/VOC2012", "/valid_list.txt", 2)
 #ds = dataset_util.VOC2012_Dataset("dataset/TEST", "/test_list.txt", 2)
 anchors = anchor_utils.get_all_anchors(config.IMAGE_SIZE, config.ANCHOR_SCALES, config.ANCHOR_RATIOS)
 
@@ -28,7 +28,7 @@ images, gt_boxes, gt_classes, gt_masks, img_sizes = ds.next_batch()
 predicted_bboxes, classes_scores, classes, predicted_masks, fg_bg_softmaxes, rpn_bbox_deltas, \
     classes_softmax, bbox_deltas, pred_masks, proposals = model([images, img_sizes], training=False)
 
-start = 0
+start = 1
 for i in range(len(images)):
     boxes = predicted_bboxes[i]
     masks = predicted_masks[i]
@@ -38,10 +38,8 @@ for i in range(len(images)):
         texts.append("{} {:.2f}".format(config.CLASSES[classes[i][j]].upper(), classes_scores[i][j]))
 
     image = images[i][:img_sizes[i][0], :img_sizes[i][1]]
-    image_util.draw_bounding_boxes_and_masks_from_array("voc2012-test-{}".format(start), image, boxes, masks, texts)
+    image_util.draw_bounding_boxes_and_masks_from_array("tests-random/voc2012-test-{}".format(start), image, boxes, masks, texts)
     start += 1
-
-
 
 
 

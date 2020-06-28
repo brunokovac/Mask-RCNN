@@ -27,13 +27,13 @@ images, gt_boxes, gt_classes, gt_masks, img_sizes = ds.next_batch()
 predicted_bboxes, classes_scores, classes, predicted_masks, fg_bg_softmaxes, rpn_bbox_deltas, \
     classes_softmax, bbox_deltas, pred_masks, proposals = model([images, img_sizes], training=False)
 
-start = 7
+start = 1
 for i in range(len(images)):
     boxes = predicted_bboxes[i]
     masks = predicted_masks[i]
 
     image = images[i][:img_sizes[i][0], :img_sizes[i][1]]
-    image_util.draw_masks_from_array("aolp-test-{}".format(start), image, boxes, masks)
+    image_util.draw_masks_from_array("tests-random/aolp-test-{}".format(start), image, boxes, masks)
     start += 1
 
 
