@@ -115,7 +115,7 @@ if __name__ == "__main__":
     rpn2 = rpn.RPN(backbone2, 3)
     model = mask_rcnn.Mask_RCNN(rpn2, anchors, len(config.CLASSES))
 
-    optimizer = tf.keras.optimizers.SGD(lr=0.004, momentum=0.9, decay=1e-4)
+    optimizer = tf.keras.optimizers.SGD(lr=0.004, momentum=0.9)
     checkpoint = tf.train.Checkpoint(optimizer=optimizer, net=model, step=tf.Variable(1))
     manager = tf.train.CheckpointManager(checkpoint, config.WEIGHTS_DIR, max_to_keep=4)
 

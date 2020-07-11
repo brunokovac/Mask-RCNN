@@ -12,8 +12,9 @@ def draw_losses_graphs(title, file):
     rpn_bbox_losses = losses[:, 1]
     mask_rcnn_cls_losses = losses[:, 2]
     mask_rcnn_bbox_losses = losses[:, 3]
+    mask_rcnn_mask_losses = losses[:, 4]
 
-    fig, ax = plt.subplots(2, 2)
+    fig, ax = plt.subplots(3, 2)
     #fig.suptitle(title)
 
     ax[0, 0].set_title("RPN object loss")
@@ -27,6 +28,11 @@ def draw_losses_graphs(title, file):
 
     ax[1, 1].set_title("Mask-RCNN bbox loss")
     ax[1, 1].plot(epochs, mask_rcnn_bbox_losses, color="orange")
+
+    ax[2, 0].set_title("Mask-RCNN mask loss")
+    ax[2, 0].plot(epochs, mask_rcnn_mask_losses, color="orange")
+
+    fig.delaxes(ax=ax[2, 1])
 
     plt.tight_layout()
     plt.savefig("{}.png".format(title))
